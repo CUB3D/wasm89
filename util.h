@@ -4,6 +4,7 @@
 #include <stdio.h>
 
 #include "fixes.h"
+#include <stdarg.h>
 
 
 /*
@@ -34,33 +35,12 @@
 }
 #endif
 
-#if TRACE
-#define trace(...) fprintf(stderr, __VA_ARGS__);
-#else
-#define trace(...) ;
-#endif
 
-#if DEBUG
-#define debug(...) fprintf(stderr, __VA_ARGS__);
-#else
-#define debug(...) ;
-#endif
+void wa_debug(char* c, ...);
+void wa_info(char* c, ...);
+void wa_warn(char* c, ...);
+void wa_error(char* c, ...);
 
-#if INFO
-#define info(...) fprintf(stderr, __VA_ARGS__);
-#else
-#define info(...) ;
-#endif
-
-#if WARN
-#define warn(...) fprintf(stderr, __VA_ARGS__);
-#else
-#define warn(...) ;
-#endif
-
-#define log(...) fprintf(stderr, __VA_ARGS__);
-
-#define error(...) fprintf(stderr, __VA_ARGS__);
 
 
 uint64_t read_LEB(uint8_t *bytes, uint32_t *pos, uint32_t maxbits);

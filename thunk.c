@@ -13,15 +13,15 @@ void thunk_out(Module *m, uint32_t fidx) {
     Block    *func = &m->functions[fidx];
     Type     *type = func->type;
     if (TRACE) {
-        warn("  >>> thunk_out 0x%x(%d) %s.%s(",
+        wa_warn("  >>> thunk_out 0x%x(%d) %s.%s(",
              func->fidx, func->fidx,
              func->import_module, func->import_field);
         for (p=type->param_count-1; p >= 0; p--) {
-            warn("%s%s", value_repr(&m->stack[m->sp-p]), p ? " " : "");
+            wa_warn("%s%s", value_repr(&m->stack[m->sp-p]), p ? " " : "");
         }
-        warn("), %d results\n", type->result_count);
-        //debug("      mask: 0x%x\n", type->mask);
-        debug("      mask: 0x%llx\n", type->mask);
+        wa_warn("), %d results\n", type->result_count);
+        //wa_debug("      mask: 0x%x\n", type->mask);
+        wa_debug("      mask: 0x%llx\n", type->mask);
     }
 
     switch (type->mask) {
@@ -51,7 +51,7 @@ void thunk_out(Module *m, uint32_t fidx) {
     }
 
     if (TRACE) {
-        warn("  <<< thunk_out 0x%x(%d) %s.%s = %s\n",
+        wa_warn("  <<< thunk_out 0x%x(%d) %s.%s = %s\n",
              func->fidx, func->fidx, func->import_module, func->import_field,
              type->result_count > 0 ? value_repr(&m->stack[m->sp]) : "_");
     }
@@ -86,8 +86,8 @@ void (*setup_thunk_in(uint32_t fidx))() {
     m->sp += type->param_count;
 
     if (TRACE) {
-        //warn("  {{}} setup_thunk_in '%s', mask: 0x%x, ARGS FOR '>>' ARE BOGUS\n",
-        warn("  {{}} setup_thunk_in '%s', mask: 0x%lluxx, ARGS FOR '>>' ARE BOGUS\n",
+        //wa_warn("  {{}} setup_thunk_in '%s', mask: 0x%x, ARGS FOR '>>' ARE BOGUS\n",
+        wa_warn("  {{}} setup_thunk_in '%s', mask: 0x%lluxx, ARGS FOR '>>' ARE BOGUS\n",
              func->export_name, type->mask);
     }
 

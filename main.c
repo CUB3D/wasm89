@@ -125,13 +125,13 @@ void init_wac_eps(void) {
     }
     _env__tableBase_ = _env__table_.entries;
 
-    info("init_mem results:\n");
-    info("  _env__memory_.bytes: %p\n", _env__memory_.bytes);
-    info("  _env__memoryBase_: %p\n", _env__memoryBase_);
-    info("  _env__DYNAMIC_TOP_PTR_: %p\n", _env__DYNAMICTOP_PTR_);
-    info("  *_env__DYNAMIC_TOP_PTR_: %p\n", *_env__DYNAMICTOP_PTR_);
-    info("  _env__table_.entries: %p\n", _env__table_.entries);
-    info("  _env__tableBase_: 0x%x\n", (unsigned int) _env__tableBase_);
+    wa_info("init_mem results:\n");
+    wa_info("  _env__memory_.bytes: %p\n", _env__memory_.bytes);
+    wa_info("  _env__memoryBase_: %p\n", _env__memoryBase_);
+    wa_info("  _env__DYNAMIC_TOP_PTR_: %p\n", _env__DYNAMICTOP_PTR_);
+    wa_info("  *_env__DYNAMIC_TOP_PTR_: %p\n", *_env__DYNAMICTOP_PTR_);
+    wa_info("  _env__table_.entries: %p\n", _env__table_.entries);
+    wa_info("  _env__tableBase_: %p\n",  _env__tableBase_);
 }
 
 
@@ -145,6 +145,7 @@ int main(int argc, char **argv) {
     uint8_t  *bytes = NULL;
     int       byte_count;
     Options opts;
+    Module* m;
 
 
     init_wac_eps();
@@ -160,7 +161,7 @@ int main(int argc, char **argv) {
         return 2;
     }
 
-    Module *m = load_module(bytes, byte_count, opts);
+    m = load_module(bytes, byte_count, opts);
     m->path = "arith,wasm";
 
     init_thunk_in(m);
@@ -182,7 +183,7 @@ int main(int argc, char **argv) {
     res = invoke(m, fidx);
 
     if (!res) {
-        error("Exception: %s\n", exception);
+        wa_error("Exception: %s\n", exception);
         return 1;
     }
 

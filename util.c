@@ -125,3 +125,49 @@ double wa_fmin(double a, double b) {
 }
 
 
+
+void wa_debug(char* c, ...)
+{
+#if DEBUG
+    va_list ap;
+    va_start(ap, c);
+    va_end(ap);
+    
+    //fprintf(stderr, __VA_ARGS__);
+#endif
+}
+
+void wa_info(char* c, ...)
+{
+#if INFO
+    va_list ap;
+    va_start(ap, c);
+    va_end(ap);
+    
+    //fprintf(stderr, __VA_ARGS__);
+#endif
+}
+
+void wa_warn(char* c, ...)
+{
+#if WARN
+    va_list ap;
+    va_start(ap, c);
+    va_end(ap);
+    
+    //fprintf(stderr, __VA_ARGS__);
+#endif
+}
+
+void wa_error(char* c, ...)
+{
+#if ERROR
+    va_list ap;
+    va_start(ap, c);
+    va_end(ap);
+    
+    //fprintf(stderr, __VA_ARGS__);
+#endif
+}
+
+

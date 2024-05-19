@@ -12,7 +12,7 @@ void *acalloc(size_t nmemb, size_t size, char *name)
     void *res = calloc(nmemb, size);
     if (nmemb * size == 0)
     {
-        warn("acalloc: %s requests allocating 0 bytes.\n", name);
+        wa_warn("acalloc: %s requests allocating 0 bytes.\n", name);
     }
     else if (res == NULL)
     {
