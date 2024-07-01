@@ -30,7 +30,7 @@
 #define TH_FP(M,OP,T) M->stack[M->fp OP].value.TH_ATTR_##T
 #define TH_OUT_RET_(M,T) \
     M->stack[M->sp].value_type = TH_WA_##T; \
-    TH_SP(M,,T) = res;
+    TH_SP(M,+0,T) = res;
 #define TH_OUT_RET_0(M)
 #define TH_OUT_RET_i(M) TH_OUT_RET_(M,i)
 #define TH_OUT_RET_I(M) TH_OUT_RET_(M,I)
@@ -44,7 +44,7 @@
 
 
 #define THUNK_OUT_0(M,FN,R) { \
-    TH_RES_##R ((TH_C_##R (*)())FN->func_ptr)(); \
+    TH_RES_##R ((TH_C_##R (*)(void))FN->func_ptr)(); \
     M->sp += 0 + TH_RCNT_##R; TH_OUT_RET_##R(M); \
 }
 #define THUNK_OUT_1(M,FN,R,A) { \
@@ -73,7 +73,7 @@
 }
 
 #define THUNK_IN_FN_0(M,R) \
-    TH_C_##R thunk_in_##R##_0() { \
+    TH_C_##R thunk_in_##R##_0(void) { \
         Module *m = _wa_current_module_; \
         interpret(M); return TH_IN_RET_##R(M); \
     }

@@ -70,7 +70,7 @@ static bool wa_signbit(double x) {
     return x < 0;
 }
 
-// this is wrong but close enough
+/* this is wrong but close enough*/
 static uint32_t wa_rint(double x) {
         return floor(x);
 }
@@ -78,40 +78,40 @@ static uint32_t wa_rint(double x) {
 
 
 char OPERATOR_INFO[][20] = {
-    // Control flow operators
-    "unreachable",           // 0x00
-    "nop",                   // 0x01
-    "block",                 // 0x02
-    "loop",                  // 0x03
-    "if",                    // 0x04
-    "else",                  // 0x05
-    "RESERVED",              // 0x06
-    "RESERVED",              // 0x07
-    "RESERVED",              // 0x08
-    "RESERVED",              // 0x09
-    "RESERVED",              // 0x0a
-    "end",                   // 0x0b
-    "br",                    // 0x0c
-    "br_if",                 // 0x0d
-    "br_table",              // 0x0e
-    "return",                // 0x0f
+    /* Control flow operators */
+    "unreachable",           /* 0x00 */
+    "nop",                   /* 0x01 */
+    "block",                 /* 0x02 */
+    "loop",                  /* 0x03 */
+    "if",                    /* 0x04 */
+    "else",                  /* 0x05 */
+    "RESERVED",              /* 0x06 */
+    "RESERVED",              /* 0x07 */
+    "RESERVED",              /* 0x08 */
+    "RESERVED",              /* 0x09 */
+    "RESERVED",              /* 0x0a */
+    "end",                   /* 0x0b */
+    "br",                    /* 0x0c */
+    "br_if",                 /* 0x0d */
+    "br_table",              /* 0x0e */
+    "return",                /* 0x0f */
 
-    // Call operators
-    "call",                  // 0x10
-    "call_indirect",         // 0x11
+    /* Call operators */
+    "call",                  /* 0x10 */
+    "call_indirect",         /* 0x11 */
 
-    "RESERVED",              // 0x12
-    "RESERVED",              // 0x13
-    "RESERVED",              // 0x14
-    "RESERVED",              // 0x15
-    "RESERVED",              // 0x16
-    "RESERVED",              // 0x17
-    "RESERVED",              // 0x18
-    "RESERVED",              // 0x19
+    "RESERVED",              /* 0x12 */
+    "RESERVED",              /* 0x13 */
+    "RESERVED",              /* 0x14 */
+    "RESERVED",              /* 0x15 */
+    "RESERVED",              /* 0x16 */
+    "RESERVED",              /* 0x17 */
+    "RESERVED",              /* 0x18 */
+    "RESERVED",              /* 0x19 */
 
-    // Parametric operators
-    "drop",                  // 0x1a
-    "select",                // 0x1b
+    /* Parametric operators */
+    "drop",                  /* 0x1a */
+    "select",                /* 0x1b */
 
     "RESERVED",              // 0x1c
     "RESERVED",              // 0x1d
@@ -861,7 +861,7 @@ bool interpret(Module *m) {
                 // pointer size) so get the actual (sized) index
                 if (TRACE) {
                     wa_debug("      - entries: %p, original val: 0x%x, new val: 0x%x\n",
-                        m->table.entries, val, (uint32_t)m->table.entries - val);
+                        m->table.entries, val, m->table.entries - val);
                 }
                 //val = val - (uint32_t)((uint64_t)m->table.entries & 0xFFFFFFFF);
                 val = val - (uint32_t)m->table.entries;
@@ -1477,8 +1477,8 @@ case 0x8a:
         case 0xa8: if (isnan(stack[m->sp].value.f32)) {
                        sprintf(exception, "invalid conversion to integer");
                        return false;
-                   } else if (stack[m->sp].value.f32 >= INT32_MAX ||
-                              stack[m->sp].value.f32 < INT32_MIN) {
+                   } else if (stack[m->sp].value.f32 >= (float)INT32_MAX ||
+                              stack[m->sp].value.f32 < (float)INT32_MIN) {
                        sprintf(exception, "integer overflow");
                        return false;
                    }
@@ -1487,7 +1487,7 @@ case 0x8a:
         case 0xa9: if (isnan(stack[m->sp].value.f32)) {
                        sprintf(exception, "invalid conversion to integer");
                        return false;
-                   } else if (stack[m->sp].value.f32 >= UINT32_MAX ||
+                   } else if (stack[m->sp].value.f32 >= (float)UINT32_MAX ||
                               stack[m->sp].value.f32 <= -1) {
                        sprintf(exception, "integer overflow");
                        return false;
@@ -1497,8 +1497,8 @@ case 0x8a:
         case 0xaa: if (isnan(stack[m->sp].value.f64)) {
                        sprintf(exception, "invalid conversion to integer");
                        return false;
-                   } else if (stack[m->sp].value.f64 > INT32_MAX ||
-                              stack[m->sp].value.f64 < INT32_MIN) {
+                   } else if (stack[m->sp].value.f64 > (double)INT32_MAX ||
+                              stack[m->sp].value.f64 < (double)INT32_MIN) {
                        sprintf(exception, "integer overflow");
                        return false;
                    }
@@ -1522,8 +1522,8 @@ case 0x8a:
         case 0xae: if (isnan(stack[m->sp].value.f32)) {
                        sprintf(exception, "invalid conversion to integer");
                        return false;
-                   } else if (stack[m->sp].value.f32 >= INT64_MAX ||
-                              stack[m->sp].value.f32 < INT64_MIN) {
+                   } else if (stack[m->sp].value.f32 >= (float)INT64_MAX ||
+                              stack[m->sp].value.f32 < (float)INT64_MIN) {
                        sprintf(exception, "integer overflow");
                        return false;
                    }
@@ -1532,7 +1532,7 @@ case 0x8a:
         case 0xaf: if (isnan(stack[m->sp].value.f32)) {
                        sprintf(exception, "invalid conversion to integer");
                        return false;
-                   } else if (stack[m->sp].value.f32 >= UINT64_MAX ||
+                   } else if (stack[m->sp].value.f32 >= (float)UINT64_MAX ||
                               stack[m->sp].value.f32 <= -1) {
                        sprintf(exception, "integer overflow");
                        return false;
@@ -1542,8 +1542,8 @@ case 0x8a:
         case 0xb0: if (isnan(stack[m->sp].value.f64)) {
                        sprintf(exception, "invalid conversion to integer");
                        return false;
-                   } else if (stack[m->sp].value.f64 >= INT64_MAX ||
-                              stack[m->sp].value.f64 < INT64_MIN) {
+                   } else if (stack[m->sp].value.f64 >= (double)INT64_MAX ||
+                              stack[m->sp].value.f64 < (double) INT64_MIN) {
                        sprintf(exception, "integer overflow");
                        return false;
                    }
@@ -1552,7 +1552,7 @@ case 0x8a:
         case 0xb1: if (isnan(stack[m->sp].value.f64)) {
                        sprintf(exception, "invalid conversion to integer");
                        return false;
-                   } else if (stack[m->sp].value.f64 >= UINT64_MAX ||
+                   } else if (stack[m->sp].value.f64 >= (double)UINT64_MAX ||
                               stack[m->sp].value.f64 <= -1) {
                        sprintf(exception, "integer overflow");
                        return false;
@@ -1985,7 +1985,7 @@ uint32_t id;
                     // offset is the table address + the index (not sized for the
                     // pointer size) so get the actual (sized) index
                     wa_debug("   origin offset: 0x%x, table addr: 0x%x, new offset: 0x%x\n",
-                          offset, (uint32_t)m->table.entries,
+                          offset, m->table.entries,
                           offset - (uint32_t)m->table.entries);
                     //offset = offset - (uint32_t)((uint64_t)m->table.entries & 0xFFFFFFFF);
                     offset = offset - (uint32_t)m->table.entries;
@@ -2026,9 +2026,8 @@ uint32_t id;
                         "memory overflow %d+%d > %d\n", offset, size,
                         (uint32_t)(m->memory.pages*PAGE_SIZE));
                 }
-                wa_info("  setting 0x%x bytes of memory at 0x%x + offset 0x%x\n",
-//                     size, m->memory.bytes, offset);
-                     size, (unsigned int) m->memory.bytes, offset);
+                wa_info("  setting 0x%x bytes of memory at 0x%p + offset 0x%x\n",
+                     size, m->memory.bytes, offset);
                 memcpy(m->memory.bytes+offset, bytes+pos, size);
                 pos += size;
             }

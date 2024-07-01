@@ -4,9 +4,9 @@
 #include "wa.h"
 #include "thunk.h"
 
-//
-// Outbound Thunks (calling imported functions)
-//
+/*
+ Outbound Thunks (calling imported functions)
+*/
 
 void thunk_out(Module *m, uint32_t fidx) {
 	int p;
@@ -20,7 +20,6 @@ void thunk_out(Module *m, uint32_t fidx) {
             wa_warn("%s%s", value_repr(&m->stack[m->sp-p]), p ? " " : "");
         }
         wa_warn("), %d results\n", type->result_count);
-        //wa_debug("      mask: 0x%x\n", type->mask);
         wa_debug("      mask: 0x%llx\n", type->mask);
     }
 
@@ -58,13 +57,14 @@ void thunk_out(Module *m, uint32_t fidx) {
 }
 
 
-//
-// Inbound Thunks (external calls into exported functions)
-//
+/*
+ Inbound Thunks (external calls into exported functions)
+*/
 
-// TODO: global state, clean up somehow
-// This global is used by setup_thunk_in since signal handlers don't have
-// a way to pass arguments when they are setup.
+/* TODO: global state, clean up somehow
+ This global is used by setup_thunk_in since signal handlers don't have
+ a way to pass arguments when they are setup.
+ */
 Module * _wa_current_module_;
 
 THUNK_IN_FN_0(m, 0)
@@ -73,34 +73,34 @@ THUNK_IN_FN_1(m, 0, F)
 THUNK_IN_FN_1(m, i, i)
 THUNK_IN_FN_2(m, i, i,i)
 
-// Push arguments
-// return function pointer to thunk_in_* function
-void (*setup_thunk_in(uint32_t fidx))() {
+/* Push arguments
+ return function pointer to thunk_in_* function
+ */
+void (*setup_thunk_in(uint32_t fidx))(void) {
 	uint32_t p;
 	void (*f)(void) = NULL;
-    Module   *m = _wa_current_module_; // TODO: global state, clean up somehow
+    Module   *m = _wa_current_module_; /* TODO: global state, clean up somehow */
     Block    *func = &m->functions[fidx];
     Type     *type = func->type;
 
-    // Make space on the stack
+    /* Make space on the stack*/
     m->sp += type->param_count;
 
     if (TRACE) {
-        //wa_warn("  {{}} setup_thunk_in '%s', mask: 0x%x, ARGS FOR '>>' ARE BOGUS\n",
         wa_warn("  {{}} setup_thunk_in '%s', mask: 0x%lluxx, ARGS FOR '>>' ARE BOGUS\n",
              func->export_name, type->mask);
     }
 
-    // Do normal function call setup. The fp will point to the start of stack
-    // elements that were just added above
+    /* Do normal function call setup. The fp will point to the start of stack
+     elements that were just added above*/
     setup_call(m, fidx);
 
-    // Set the type of the unset stack elements
+    /* Set the type of the unset stack elements */
     for(p=0; p<type->param_count; p++) {
         m->stack[m->fp+p].value_type = type->params[p];
     }
 
-    // Return the thunk_in function
+    /* Return the thunk_in function */
     switch (type->mask) {
     case 0x800      : f = (void (*)(void)) thunk_in_0_0; break;
     case 0x8101     : f = (void (*)(void)) thunk_in_i_i; break;
@@ -112,6 +112,6 @@ void (*setup_thunk_in(uint32_t fidx))() {
 }
 
 void init_thunk_in(Module *m) {
-    _wa_current_module_ = m; // TODO: global state, clean up somehow
+    _wa_current_module_ = m; /* TODO: global state, clean up somehow*/
 }
 

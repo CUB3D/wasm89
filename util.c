@@ -113,13 +113,21 @@ static bool _signbit(double x) {
     return x < 0;
 }
 
+double _fmax(double a, double b) {
+    return a > b ? a : b;
+}
+
+double _fmin(double a, double b) {
+    return a < b ? a : b;
+}
+
 double wa_fmax(double a, double b) {
-    double c = fmax(a, b);
+    double c = _fmax(a, b);
     if (c==0 && a==b) { return _signbit(a) ? b : a; }
     return c;
 }
 double wa_fmin(double a, double b) {
-    double c = fmin(a, b);
+    double c = _fmin(a, b);
     if (c==0 && a==b) { return _signbit(a) ? a : b; }
     return c;
 }
@@ -131,9 +139,8 @@ void wa_debug(char* c, ...)
 #if DEBUG
     va_list ap;
     va_start(ap, c);
+    vfprintf(stdout, c, ap);
     va_end(ap);
-    
-    //fprintf(stderr, __VA_ARGS__);
 #endif
 }
 
@@ -142,9 +149,8 @@ void wa_info(char* c, ...)
 #if INFO
     va_list ap;
     va_start(ap, c);
+    vfprintf(stdout, c, ap);
     va_end(ap);
-    
-    //fprintf(stderr, __VA_ARGS__);
 #endif
 }
 
@@ -153,9 +159,8 @@ void wa_warn(char* c, ...)
 #if WARN
     va_list ap;
     va_start(ap, c);
+    vfprintf(stderr, c, ap);
     va_end(ap);
-    
-    //fprintf(stderr, __VA_ARGS__);
 #endif
 }
 
@@ -164,9 +169,8 @@ void wa_error(char* c, ...)
 #if ERROR
     va_list ap;
     va_start(ap, c);
+    vfprintf(stderr, c, ap);
     va_end(ap);
-    
-    //fprintf(stderr, __VA_ARGS__);
 #endif
 }
 

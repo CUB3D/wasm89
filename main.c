@@ -148,13 +148,28 @@ int main(int argc, char **argv) {
     Module* m;
 
 
-    init_wac_eps();
+    //init_wac_eps();
 
     // Load the module
     //bytes = arith_wasm;
     // byte_count = arith_wasm_len;
-    bytes =  wasi_test_wasm;
-    byte_count =  wasi_test_wasm_len;
+    // bytes =  wasi_test_wasm;
+    // byte_count =  wasi_test_wasm_len;
+
+FILE * f = fopen ("/home/cub3d/wabt/nop.0.wasm", "rb");
+
+if (f)
+{
+  fseek (f, 0, SEEK_END);
+  byte_count = ftell (f);
+  fseek (f, 0, SEEK_SET);
+  bytes = malloc (byte_count);
+  if (bytes)
+  {
+    fread (bytes, 1, byte_count, f);
+  }
+  fclose (f);
+}
 
     if (bytes == NULL) {
         fprintf(stderr, "Could not load %s", mod_path);
