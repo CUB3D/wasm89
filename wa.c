@@ -9,7 +9,7 @@
 #include "wa.h"
 
 #ifndef isnan
-int isnan(double x) { return (x != x); }
+static int isnan(double x) { return (x != x); }
 #endif
 
 static uint32_t popcnt( uint32_t x )
@@ -34,7 +34,8 @@ static uint32_t clz( uint32_t x )
 static uint32_t clzll( uint64_t x ) {
     uint32_t a = 0;
     for(a=0; a < 64; a++) {
-        if((x & (1<<(63-a))) == (1<<(63-a))) {
+        uint64_t mask = ((uint64_t)1) << ( ((uint64_t)63) - ((uint64_t)a) );
+        if((x & mask) != 0) {
             return a;
         }
     }
@@ -44,7 +45,8 @@ static uint32_t clzll( uint64_t x ) {
 static uint32_t popcntll( uint64_t x ) {
     uint32_t a = 0;
     for(a=0; a < 64; a++) {
-        if((x & (1<<(63-a))) != (1<<(63-a))) {
+        uint64_t mask = ((uint64_t)1) << ( ((uint64_t)63) - ((uint64_t)a) );
+        if((x & mask) == 0 ) {
             return a;
         }
     }
@@ -113,201 +115,201 @@ char OPERATOR_INFO[][20] = {
     "drop",                  /* 0x1a */
     "select",                /* 0x1b */
 
-    "RESERVED",              // 0x1c
-    "RESERVED",              // 0x1d
-    "RESERVED",              // 0x1e
-    "RESERVED",              // 0x1f
+    "RESERVED",              /* 0x1c */
+    "RESERVED",              /* 0x1d */
+    "RESERVED",              /* 0x1e */
+    "RESERVED",              /* 0x1f */
 
-    // Variable access
-    "get_local",             // 0x20
-    "set_local",             // 0x21
-    "tee_local",             // 0x22
-    "get_global",            // 0x23
-    "set_global",            // 0x24
+    /* Variable access */
+    "get_local",             /* 0x20 */
+    "set_local",             /* 0x21 */
+    "tee_local",             /* 0x22 */
+    "get_global",            /* 0x23 */
+    "set_global",            /* 0x24 */
 
-    "RESERVED",              // 0x25
-    "RESERVED",              // 0x26
-    "RESERVED",              // 0x27
+    "RESERVED",              /* 0x25 */
+    "RESERVED",              /* 0x26 */
+    "RESERVED",              /* 0x27 */
 
-    // Memory-related operator
-    "i32.load",              // 0x28
-    "i64.load",              // 0x29
-    "f32.load",              // 0x2a
-    "f64.load",              // 0x2b
-    "i32.load8_s",           // 0x2c
-    "i32.load8_u",           // 0x2d
-    "i32.load16_s",          // 0x2e
-    "i32.load16_u",          // 0x2f
-    "i64.load8_s",           // 0x30
-    "i64.load8_u",           // 0x31
-    "i64.load16_s",          // 0x32
-    "i64.load16_u",          // 0x33
-    "i64.load32_s",          // 0x34
-    "i64.load32_u",          // 0x35
-    "i32.store",             // 0x36
-    "i64.store",             // 0x37
-    "f32.store",             // 0x38
-    "f64.store",             // 0x39
-    "i32.store8",            // 0x3a
-    "i32.store16",           // 0x3b
-    "i64.store8",            // 0x3c
-    "i64.store16",           // 0x3d
-    "i64.store32",           // 0x3e
-    "current_memory",        // 0x3f
-    "grow_memory",           // 0x40
+    /* Memory-related operator */
+    "i32.load",              /* 0x28 */
+    "i64.load",              /* 0x29 */
+    "f32.load",              /* 0x2a */
+    "f64.load",              /* 0x2b */
+    "i32.load8_s",           /* 0x2c */
+    "i32.load8_u",           /* 0x2d */
+    "i32.load16_s",          /* 0x2e */
+    "i32.load16_u",          /* 0x2f */
+    "i64.load8_s",           /* 0x30 */
+    "i64.load8_u",           /* 0x31 */
+    "i64.load16_s",          /* 0x32 */
+    "i64.load16_u",          /* 0x33 */
+    "i64.load32_s",          /* 0x34 */
+    "i64.load32_u",          /* 0x35 */
+    "i32.store",             /* 0x36 */
+    "i64.store",             /* 0x37 */
+    "f32.store",             /* 0x38 */
+    "f64.store",             /* 0x39 */
+    "i32.store8",            /* 0x3a */
+    "i32.store16",           /* 0x3b */
+    "i64.store8",            /* 0x3c */
+    "i64.store16",           /* 0x3d */
+    "i64.store32",           /* 0x3e */
+    "current_memory",        /* 0x3f */
+    "grow_memory",           /* 0x40 */
 
-    // Constants
-    "i32.const",             // 0x41
-    "i64.const",             // 0x42
-    "f32.const",             // 0x43
-    "f64.const",             // 0x44
+    /* Constants */
+    "i32.const",             /* 0x41 */
+    "i64.const",             /* 0x42 */
+    "f32.const",             /* 0x43 */
+    "f64.const",             /* 0x44 */
 
-    // Comparison operators
-    "i32.eqz",               // 0x45
-    "i32.eq",                // 0x46
-    "i32.ne",                // 0x47
-    "i32.lt_s",              // 0x48
-    "i32.lt_u",              // 0x49
-    "i32.gt_s",              // 0x4a
-    "i32.gt_u",              // 0x4b
-    "i32.le_s",              // 0x4c
-    "i32.le_u",              // 0x4d
-    "i32.ge_s",              // 0x4e
-    "i32.ge_u",              // 0x4f
+    /* Comparison operators */
+    "i32.eqz",               /* 0x45 */
+    "i32.eq",                /* 0x46 */
+    "i32.ne",                /* 0x47 */
+    "i32.lt_s",              /* 0x48 */
+    "i32.lt_u",              /* 0x49 */
+    "i32.gt_s",              /* 0x4a */
+    "i32.gt_u",              /* 0x4b */
+    "i32.le_s",              /* 0x4c */
+    "i32.le_u",              /* 0x4d */
+    "i32.ge_s",              /* 0x4e */
+    "i32.ge_u",              /* 0x4f */
 
-    "i64.eqz",               // 0x50
-    "i64.eq",                // 0x51
-    "i64.ne",                // 0x52
-    "i64.lt_s",              // 0x53
-    "i64.lt_u",              // 0x54
-    "i64.gt_s",              // 0x55
-    "i64.gt_u",              // 0x56
-    "i64.le_s",              // 0x57
-    "i64.le_u",              // 0x58
-    "i64.ge_s",              // 0x59
-    "i64.ge_u",              // 0x5a
+    "i64.eqz",               /* 0x50 */
+    "i64.eq",                /* 0x51 */
+    "i64.ne",                /* 0x52 */
+    "i64.lt_s",              /* 0x53 */
+    "i64.lt_u",              /* 0x54 */
+    "i64.gt_s",              /* 0x55 */
+    "i64.gt_u",              /* 0x56 */
+    "i64.le_s",              /* 0x57 */
+    "i64.le_u",              /* 0x58 */
+    "i64.ge_s",              /* 0x59 */
+    "i64.ge_u",              /* 0x5a */
 
-    "f32.eq",                // 0x5b
-    "f32.ne",                // 0x5c
-    "f32.lt",                // 0x5d
-    "f32.gt",                // 0x5e
-    "f32.le",                // 0x5f
-    "f32.ge",                // 0x60
+    "f32.eq",                /* 0x5b */
+    "f32.ne",                /* 0x5c */
+    "f32.lt",                /* 0x5d */
+    "f32.gt",                /* 0x5e */
+    "f32.le",                /* 0x5f */
+    "f32.ge",                /* 0x60 */
 
-    "f64.eq",                // 0x61
-    "f64.ne",                // 0x62
-    "f64.lt",                // 0x63
-    "f64.gt",                // 0x64
-    "f64.le",                // 0x65
-    "f64.ge",                // 0x66
+    "f64.eq",                /* 0x61 */
+    "f64.ne",                /* 0x62 */
+    "f64.lt",                /* 0x63 */
+    "f64.gt",                /* 0x64 */
+    "f64.le",                /* 0x65 */
+    "f64.ge",                /* 0x66 */
 
-    // Numeric operators
-    "i32.clz",               // 0x67
-    "i32.ctz",               // 0x68
-    "i32.popcnt",            // 0x69
-    "i32.add",               // 0x6a
-    "i32.sub",               // 0x6b
-    "i32.mul",               // 0x6c
-    "i32.div_s",             // 0x6d
-    "i32.div_u",             // 0x6e
-    "i32.rem_s",             // 0x6f
-    "i32.rem_u",             // 0x70
-    "i32.and",               // 0x71
-    "i32.or",                // 0x72
-    "i32.xor",               // 0x73
-    "i32.shl",               // 0x74
-    "i32.shr_s",             // 0x75
-    "i32.shr_u",             // 0x76
-    "i32.rotl",              // 0x77
-    "i32.rotr",              // 0x78
+    /* Numeric operators */
+    "i32.clz",               /* 0x67 */
+    "i32.ctz",               /* 0x68 */
+    "i32.popcnt",            /* 0x69 */
+    "i32.add",               /* 0x6a */
+    "i32.sub",               /* 0x6b */
+    "i32.mul",               /* 0x6c */
+    "i32.div_s",             /* 0x6d */
+    "i32.div_u",             /* 0x6e */
+    "i32.rem_s",             /* 0x6f */
+    "i32.rem_u",             /* 0x70 */
+    "i32.and",               /* 0x71 */
+    "i32.or",                /* 0x72 */
+    "i32.xor",               /* 0x73 */
+    "i32.shl",               /* 0x74 */
+    "i32.shr_s",             /* 0x75 */
+    "i32.shr_u",             /* 0x76 */
+    "i32.rotl",              /* 0x77 */
+    "i32.rotr",              /* 0x78 */
 
-    "i64.clz",               // 0x79
-    "i64.ctz",               // 0x7a
-    "i64.popcnt",            // 0x7b
-    "i64.add",               // 0x7c
-    "i64.sub",               // 0x7d
-    "i64.mul",               // 0x7e
-    "i64.div_s",             // 0x7f
-    "i64.div_u",             // 0x80
-    "i64.rem_s",             // 0x81
-    "i64.rem_u",             // 0x82
-    "i64.and",               // 0x83
-    "i64.or",                // 0x84
-    "i64.xor",               // 0x85
-    "i64.shl",               // 0x86
-    "i64.shr_s",             // 0x87
-    "i64.shr_u",             // 0x88
-    "i64.rotl",              // 0x89
-    "i64.rotr",              // 0x8a
+    "i64.clz",               /* 0x79 */
+    "i64.ctz",               /* 0x7a */
+    "i64.popcnt",            /* 0x7b */
+    "i64.add",               /* 0x7c */
+    "i64.sub",               /* 0x7d */
+    "i64.mul",               /* 0x7e */
+    "i64.div_s",             /* 0x7f */
+    "i64.div_u",             /* 0x80 */
+    "i64.rem_s",             /* 0x81 */
+    "i64.rem_u",             /* 0x82 */
+    "i64.and",               /* 0x83 */
+    "i64.or",                /* 0x84 */
+    "i64.xor",               /* 0x85 */
+    "i64.shl",               /* 0x86 */
+    "i64.shr_s",             /* 0x87 */
+    "i64.shr_u",             /* 0x88 */
+    "i64.rotl",              /* 0x89 */
+    "i64.rotr",              /* 0x8a */
 
-    "f32.abs",               // 0x8b
-    "f32.neg",               // 0x8c
-    "f32.ceil",              // 0x8d
-    "f32.floor",             // 0x8e
-    "f32.trunc",             // 0x8f
-    "f32.nearest",           // 0x90
-    "f32.sqrt",              // 0x91
-    "f32.add",               // 0x92
-    "f32.sub",               // 0x93
-    "f32.mul",               // 0x94
-    "f32.div",               // 0x95
-    "f32.min",               // 0x96
-    "f32.max",               // 0x97
-    "f32.copysign",          // 0x98
+    "f32.abs",               /* 0x8b */
+    "f32.neg",               /* 0x8c */
+    "f32.ceil",              /* 0x8d */
+    "f32.floor",             /* 0x8e */
+    "f32.trunc",             /* 0x8f */
+    "f32.nearest",           /* 0x90 */
+    "f32.sqrt",              /* 0x91 */
+    "f32.add",               /* 0x92 */
+    "f32.sub",               /* 0x93 */
+    "f32.mul",               /* 0x94 */
+    "f32.div",               /* 0x95 */
+    "f32.min",               /* 0x96 */
+    "f32.max",               /* 0x97 */
+    "f32.copysign",          /* 0x98 */
 
-    "f64.abs",               // 0x99
-    "f64.neg",               // 0x9a
-    "f64.ceil",              // 0x9b
-    "f64.floor",             // 0x9c
-    "f64.trunc",             // 0x9d
-    "f64.nearest",           // 0x9e
-    "f64.sqrt",              // 0x9f
-    "f64.add",               // 0xa0
-    "f64.sub",               // 0xa1
-    "f64.mul",               // 0xa2
-    "f64.div",               // 0xa3
-    "f64.min",               // 0xa4
-    "f64.max",               // 0xa5
-    "f64.copysign",          // 0xa6
+    "f64.abs",               /* 0x99 */
+    "f64.neg",               /* 0x9a */
+    "f64.ceil",              /* 0x9b */
+    "f64.floor",             /* 0x9c */
+    "f64.trunc",             /* 0x9d */
+    "f64.nearest",           /* 0x9e */
+    "f64.sqrt",              /* 0x9f */
+    "f64.add",               /* 0xa0 */
+    "f64.sub",               /* 0xa1 */
+    "f64.mul",               /* 0xa2 */
+    "f64.div",               /* 0xa3 */
+    "f64.min",               /* 0xa4 */
+    "f64.max",               /* 0xa5 */
+    "f64.copysign",          /* 0xa6 */
 
-    // Conversions
-    "i32.wrap/i64",          // 0xa7
-    "i32.trunc_s/f32",       // 0xa8
-    "i32.trunc_u/f32",       // 0xa9
-    "i32.trunc_s/f64",       // 0xaa
-    "i32.trunc_u/f64",       // 0xab
+    /* Conversions */
+    "i32.wrap/i64",          /* 0xa7 */
+    "i32.trunc_s/f32",       /* 0xa8 */
+    "i32.trunc_u/f32",       /* 0xa9 */
+    "i32.trunc_s/f64",       /* 0xaa */
+    "i32.trunc_u/f64",       /* 0xab */
 
-    "i64.extend_s/i32",      // 0xac
-    "i64.extend_u/i32",      // 0xad
-    "i64.trunc_s/f32",       // 0xae
-    "i64.trunc_u/f32",       // 0xaf
-    "i64.trunc_s/f64",       // 0xb0
-    "i64.trunc_u/f64",       // 0xb1
+    "i64.extend_s/i32",      /* 0xac */
+    "i64.extend_u/i32",      /* 0xad */
+    "i64.trunc_s/f32",       /* 0xae */
+    "i64.trunc_u/f32",       /* 0xaf */
+    "i64.trunc_s/f64",       /* 0xb0 */
+    "i64.trunc_u/f64",       /* 0xb1 */
 
-    "f32.convert_s/i32",     // 0xb2
-    "f32.convert_u/i32",     // 0xb3
-    "f32.convert_s/i64",     // 0xb4
-    "f32.convert_u/i64",     // 0xb5
-    "f32.demote/f64",        // 0xb6
+    "f32.convert_s/i32",     /* 0xb2 */
+    "f32.convert_u/i32",     /* 0xb3 */
+    "f32.convert_s/i64",     /* 0xb4 */
+    "f32.convert_u/i64",     /* 0xb5 */
+    "f32.demote/f64",        /* 0xb6 */
 
-    "f64.convert_s/i32",     // 0xb7
-    "f64.convert_u/i32",     // 0xb8
-    "f64.convert_s/i64",     // 0xb9
-    "f64.convert_u/i64",     // 0xba
-    "f64.promote/f32",       // 0xbb
+    "f64.convert_s/i32",     /* 0xb7 */
+    "f64.convert_u/i32",     /* 0xb8 */
+    "f64.convert_s/i64",     /* 0xb9 */
+    "f64.convert_u/i64",     /* 0xba */
+    "f64.promote/f32",       /* 0xbb */
 
-    // Reinterpretations
-    "i32.reinterpret/f32",   // 0xbc
-    "i64.reinterpret/f64",   // 0xbd
-    "f32.reinterpret/i32",   // 0xbe
-    "f64.reinterpret/i64"    // 0xbf
+    /* Reinterpretations */
+    "i32.reinterpret/f32",   /* 0xbc */
+    "i64.reinterpret/f64",   /* 0xbd */
+    "f32.reinterpret/i32",   /* 0xbe */
+    "f64.reinterpret/i64"    /* 0xbf */
 };
 
-// Size of memory load.
-// This starts with the first memory load operator at opcode 0x28
+/* Size of memory load.
+ This starts with the first memory load operator at opcode 0x28 */
 uint32_t LOAD_SIZE[] = {
-    4, 8, 4, 8, 1, 1, 2, 2, 1, 1, 2, 2, 4, 4, // loads
-    4, 8, 4, 8, 1, 2, 1, 2, 4};               // stores
+    4, 8, 4, 8, 1, 1, 2, 2, 1, 1, 2, 2, 4, 4, /* loads */
+    4, 8, 4, 8, 1, 2, 1, 2, 4};               /* stores */
 
 
 // global exception message
@@ -355,11 +357,22 @@ uint64_t get_type_mask(Type *type) {
 // FIXME: waisting 256Bytes!
 char _value_str[256];
 char *value_repr(StackValue *v) {
+    memset(_value_str, 0, 256);
     switch (v->value_type) {
-    case I32: sprintf(_value_str, "0x%x:i32",  v->value.uint32); break;
-    case I64: sprintf(_value_str, "0x%llx:i64", v->value.uint64); break;
-    case F32: sprintf(_value_str, "%.7g:f32",  v->value.f32);    break;
-    case F64: sprintf(_value_str, "%.7g:f64",  v->value.f64);    break;
+    case I32: 
+        sprintf(_value_str, "0x%x:i32",  v->value.uint32); 
+        break;
+    case I64: 
+        sprintf(_value_str, "0x%llx:i64", v->value.uint64);
+         break;
+    case F32:
+        sprintf(_value_str, "%.7g:f32",  v->value.f32);
+        break;
+    case F64: 
+        sprintf(_value_str, "%.7g:f64",  v->value.f64);
+        break;
+    default:
+        sprintf(_value_str, "<Invalid %d>", v->value_type);
     }
     return _value_str;
 }
@@ -631,7 +644,7 @@ void setup_call(Module *m, uint32_t fidx) {
     // Push current frame on the call stack
     push_block(m, func, m->sp - type->param_count);
 
-    if (TRACE) {
+    if (should_trace()) {
         wa_warn("  >> fn0x%x(%d) %s(",
              fidx, fidx, func->export_name ? func->export_name : "");
         for (p=type->param_count-1; p >= 0; p--) {
@@ -683,8 +696,8 @@ bool interpret(Module *m) {
         cur_pc = m->pc;
         m->pc += 1;
 
-        if (TRACE) {
-            if (DEBUG) { dump_stacks(m); }
+        if (should_trace()) {
+            dump_stacks(m);
             wa_info("    0x%x <0x%x/%s>\n", cur_pc, opcode, OPERATOR_INFO[opcode]);
         }
 
@@ -735,33 +748,31 @@ bool interpret(Module *m) {
                 }
             }
             // if true, keep going
-            if (TRACE) {
-                wa_debug("      - cond: 0x%x jump to 0x%x, block: %s\n",
+                wa_trace("      - cond: 0x%x jump to 0x%x, block: %s\n",
                        cond, m->pc, block_repr(block));
-            }
             continue;
         case 0x05:  // else
             block = m->callstack[m->csp].block;
             m->pc = block->br_addr;
-            if (TRACE) {
-                wa_debug("      - of %s jump to 0x%x\n", block_repr(block), m->pc);
-            }
+            
+                wa_trace("      - of %s jump to 0x%x\n", block_repr(block), m->pc);
+            
             continue;
         case 0x0b:  // end
             block = pop_block(m);
             if (block == NULL) {
                 return false; // an exception (set by pop_block)
             }
-            if (TRACE) { wa_debug("      - of %s\n", block_repr(block)); }
+            wa_trace("      - of %s\n", block_repr(block));
             if (block->block_type == 0x00) { // Function
-                if (TRACE) {
-                    wa_warn("  << fn0x%x(%d) %s = %s\n",
+                
+                    wa_trace("  << fn0x%x(%d) %s = %s\n",
                       block->fidx, block->fidx,
                       block->export_name ? block->export_name : "",
                       block->type->result_count > 0 ?
                         value_repr(&m->stack[m->sp]) :
                         "_");
-                }
+                
                 if (m->csp == -1) {
                     // Return to top-level
                     return true;
@@ -780,7 +791,7 @@ bool interpret(Module *m) {
             // set to end for pop_block
             m->pc = m->callstack[m->csp].block->br_addr;
          //   if (TRACE) { wa_debug("      - to: 0x%x\n", &m->pc); }
-            if (TRACE) { wa_debug("      - to: 0x%x\n", m->pc); }
+            wa_trace("      - to: 0x%x\n", m->pc);
             continue;
         case 0x0d:  // br_if
             depth = read_LEB(bytes, &m->pc, 32);
@@ -791,7 +802,7 @@ bool interpret(Module *m) {
                 // set to end for pop_block
                 m->pc = m->callstack[m->csp].block->br_addr;
             }
-            if (TRACE) { wa_debug("      - depth: 0x%x, cond: 0x%x, to: 0x%x\n", depth, cond, m->pc); }
+             wa_trace("      - depth: 0x%x, cond: 0x%x, to: 0x%x\n", depth, cond, m->pc); 
             continue;
         case 0x0e:  // br_table
             count = read_LEB(bytes, &m->pc, 32);
@@ -814,9 +825,9 @@ bool interpret(Module *m) {
             m->csp -= depth;
             // set to end for pop_block
             m->pc = m->callstack[m->csp].block->br_addr;
-            if (TRACE) {
-                wa_debug("      - count: %d, didx: %d, to: 0x%x\n", count, didx, m->pc);
-            }
+            
+                wa_trace("      - count: %d, didx: %d, to: 0x%x\n", count, didx, m->pc);
+            
             continue;
         case 0x0f:  // return
             while (m->csp >= 0 &&
@@ -826,9 +837,9 @@ bool interpret(Module *m) {
             // Set the program count to the end of the function
             // The actual pop_block and return is handled by the end opcode.
             m->pc = m->callstack[0].block->end_addr;
-            if (TRACE) {
-                wa_debug("      - to: 0x%x\n", m->pc);
-            }
+            
+                wa_trace("      - to: 0x%x\n", m->pc);
+            
             continue;
 
 
@@ -846,9 +857,9 @@ bool interpret(Module *m) {
                     return false;
                 }
                 setup_call(m, fidx);  // regular function call
-                if (TRACE) {
-                    wa_debug("      - calling function fidx: %d at: 0x%x\n", fidx, m->pc);
-                }
+                
+                    wa_trace("      - calling function fidx: %d at: 0x%x\n", fidx, m->pc);
+                
             }
             continue;
         case 0x11:  // call_indirect
@@ -859,12 +870,12 @@ bool interpret(Module *m) {
             if (m->options.mangle_table_index) {
                 // val is the table address + the index (not sized for the
                 // pointer size) so get the actual (sized) index
-                if (TRACE) {
-                    wa_debug("      - entries: %p, original val: 0x%x, new val: 0x%x\n",
+                
+                    wa_trace("      - entries: %p, original val: 0x%x, new val: 0x%x\n",
                         m->table.entries, val, m->table.entries - val);
-                }
+                
                 //val = val - (uint32_t)((uint64_t)m->table.entries & 0xFFFFFFFF);
-                val = val - (uint32_t)m->table.entries;
+                val = val - (uint32_t)(uint64_t)m->table.entries;
             }
             if (val >= m->table.maximum) {
                 sprintf(exception, "undefined element 0x%x (max: 0x%x) in table",
@@ -873,10 +884,10 @@ bool interpret(Module *m) {
             }
 
             fidx = m->table.entries[val];
-            if (TRACE) {
-                wa_debug("       - call_indirect tidx: %d, val: 0x%x, fidx: 0x%x\n",
+            
+                wa_trace("       - call_indirect tidx: %d, val: 0x%x, fidx: 0x%x\n",
                       tidx, val, fidx);
-            }
+            
 
             if (fidx < m->import_count) {
                 thunk_out(m, fidx);    // import/thunk call
@@ -907,11 +918,11 @@ bool interpret(Module *m) {
                     }
                 }
 
-                if (TRACE) {
-                    wa_debug("      - tidx: %d, table idx: %d, "
+                
+                    wa_trace("      - tidx: %d, table idx: %d, "
                           "calling function fidx: %d at: 0x%x\n",
                         tidx, val, fidx, m->pc);
-                }
+                
             }
             continue;
 
@@ -935,43 +946,43 @@ bool interpret(Module *m) {
         //
         case 0x20:  // get_local
             arg = read_LEB(bytes, &m->pc, 32);
-            if (TRACE) {
-                wa_debug("      - arg: 0x%x, got %s\n",
+            
+                wa_trace("      - arg: 0x%x, got %s\n",
                        arg, value_repr(&stack[m->fp+arg]));
-            }
+            
             stack[++m->sp] = stack[m->fp+arg];
             continue;
         case 0x21:  // set_local
             arg = read_LEB(bytes, &m->pc, 32);
             stack[m->fp+arg] = stack[m->sp--];
-            if (TRACE) {
-                wa_debug("      - arg: 0x%x, to %s\n",
+            
+                wa_trace("      - arg: 0x%x, to %s\n",
                        arg, value_repr(&stack[m->sp]));
-            }
+            
             continue;
         case 0x22:  // tee_local
             arg = read_LEB(bytes, &m->pc, 32);
             stack[m->fp+arg] = stack[m->sp];
-            if (TRACE) {
-                wa_debug("      - arg: 0x%x, to %s\n",
+            
+                wa_trace("      - arg: 0x%x, to %s\n",
                        arg, value_repr(&stack[m->sp]));
-            }
+            
             continue;
         case 0x23:  // get_global
             arg = read_LEB(bytes, &m->pc, 32);
-            if (TRACE) {
-                wa_debug("      - arg: 0x%x, got %s\n",
+            
+                wa_trace("      - arg: 0x%x, got %s\n",
                        arg, value_repr(&m->globals[arg]));
-            }
+            
             stack[++m->sp] = m->globals[arg];
             continue;
         case 0x24:  // set_global
             arg = read_LEB(bytes, &m->pc, 32);
             m->globals[arg] = stack[m->sp--];
-            if (TRACE) {
-                wa_debug("      - arg: 0x%x, to %s\n",
+            
+                wa_trace("      - arg: 0x%x, to %s\n",
                        arg, value_repr(&m->globals[arg]));
-            }
+            
             continue;
 
         //
@@ -1019,7 +1030,7 @@ bool interpret(Module *m) {
             flags = read_LEB(bytes, &m->pc, 32);
             offset = read_LEB(bytes, &m->pc, 32);
             addr = stack[m->sp--].value.uint32;
-            if (flags != 2 && TRACE) {
+            if (flags != 2 && should_trace()) {
                 wa_info("      - unaligned load - flags: 0x%x,"
                       " offset: 0x%x, addr: 0x%x\n",
                       flags, offset, addr);
@@ -1094,7 +1105,7 @@ case 0x3e:
             offset = read_LEB(bytes, &m->pc, 32);
             sval = &stack[m->sp--];
             addr = stack[m->sp--].value.uint32;
-            if (flags != 2 && TRACE) {
+            if (flags != 2 && should_trace()) {
                 wa_info("      - unaligned store - flags: 0x%x,"
                       " offset: 0x%x, addr: 0x%x, val: %s\n",
                       flags, offset, addr, value_repr(sval));
@@ -1598,8 +1609,10 @@ case 0x8a:
 void run_init_expr(Module *m, uint8_t type, uint32_t *pc) {
     // Run the init_expr
     Block block = {  0x01,0,
-                    get_block_type(type),0,0,
-                    *pc,0,0,0,0,0,0,0 };
+                    NULL,0,0,
+                    0,0,0,0,0,0,0,0 };
+    block.type = get_block_type(type);
+    block.start_addr = *pc;
     m->pc = *pc;
     push_block(m, &block, m->sp);
     // WARNING: running code here to get initial value!
@@ -1648,7 +1661,7 @@ uint32_t id;
    char* import_module,*import_field;
    uint8_t content_type,mutability,type1;
    
-   void *val;
+   void *val = NULL;
     char *err;
     char  *sym;
     
@@ -1818,7 +1831,7 @@ uint32_t id;
                         func->import_module, func->import_field, fidx,
                         type_index);
 
-                    func->func_ptr = val;
+                    func->func_ptr = ( void*(*)(void))val;
                     break;
                 case 0x01:  // Table
                     ASSERT(!m->table.entries,
@@ -1986,9 +1999,9 @@ uint32_t id;
                     // pointer size) so get the actual (sized) index
                     wa_debug("   origin offset: 0x%x, table addr: 0x%x, new offset: 0x%x\n",
                           offset, m->table.entries,
-                          offset - (uint32_t)m->table.entries);
+                          offset - (uint32_t)(uint64_t)m->table.entries);
                     //offset = offset - (uint32_t)((uint64_t)m->table.entries & 0xFFFFFFFF);
-                    offset = offset - (uint32_t)m->table.entries;
+                    offset = offset - (uint32_t)(uint64_t)m->table.entries;
                 }
 
                 num_elem = read_LEB(bytes, &pos, 32);
@@ -2092,7 +2105,7 @@ uint32_t id;
         wa_warn("Running start function 0x%x ('%s')\n",
              fidx, m->functions[fidx].export_name);
 
-        if (TRACE && DEBUG) { dump_stacks(m); }
+        if (should_trace()) { dump_stacks(m); }
 
         if (fidx < m->import_count) {
             thunk_out(m, fidx);     // import/thunk call
@@ -2120,13 +2133,13 @@ uint32_t id;
 bool invoke(Module *m, uint32_t fidx) {
     bool      result;
 
-    if (TRACE && DEBUG) { dump_stacks(m); }
+    if (should_trace()) { dump_stacks(m); }
 
     setup_call(m, fidx);
 
     result = interpret(m);
 
-    if (TRACE && DEBUG) { dump_stacks(m); }
+    if (should_trace()) { dump_stacks(m); }
 
     return result;
 }

@@ -12,7 +12,7 @@ void thunk_out(Module *m, uint32_t fidx) {
 	int p;
     Block    *func = &m->functions[fidx];
     Type     *type = func->type;
-    if (TRACE) {
+    if (should_trace()) {
         wa_warn("  >>> thunk_out 0x%x(%d) %s.%s(",
              func->fidx, func->fidx,
              func->import_module, func->import_field);
@@ -49,11 +49,9 @@ void thunk_out(Module *m, uint32_t fidx) {
     default: FATAL("unsupported thunk_out mask 0x%llx\n", type->mask);
     }
 
-    if (TRACE) {
-        wa_warn("  <<< thunk_out 0x%x(%d) %s.%s = %s\n",
-             func->fidx, func->fidx, func->import_module, func->import_field,
-             type->result_count > 0 ? value_repr(&m->stack[m->sp]) : "_");
-    }
+    wa_trace("  <<< thunk_out 0x%x(%d) %s.%s = %s\n",
+            func->fidx, func->fidx, func->import_module, func->import_field,
+            type->result_count > 0 ? value_repr(&m->stack[m->sp]) : "_");
 }
 
 
@@ -86,10 +84,10 @@ void (*setup_thunk_in(uint32_t fidx))(void) {
     /* Make space on the stack*/
     m->sp += type->param_count;
 
-    if (TRACE) {
-        wa_warn("  {{}} setup_thunk_in '%s', mask: 0x%lluxx, ARGS FOR '>>' ARE BOGUS\n",
+    
+        wa_trace("  {{}} setup_thunk_in '%s', mask: 0x%lluxx, ARGS FOR '>>' ARE BOGUS\n",
              func->export_name, type->mask);
-    }
+
 
     /* Do normal function call setup. The fp will point to the start of stack
      elements that were just added above*/

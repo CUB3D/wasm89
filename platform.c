@@ -16,7 +16,7 @@ void *acalloc(size_t nmemb, size_t size, char *name)
     }
     else if (res == NULL)
     {
-        FATAL("Could not allocate %ul bytes for %s", nmemb * size, name);
+        FATAL("Could not allocate %lu bytes for %s", nmemb * size, name);
     }
     return res;
 }
@@ -28,7 +28,7 @@ void *arecalloc(void *ptr, size_t old_nmemb, size_t nmemb,
     void *res = realloc(ptr, nmemb * size);
     if (res == NULL)
     {
-        FATAL("Could not allocate %ul bytes for %s", nmemb * size, name);
+        FATAL("Could not allocate %lu bytes for %s", nmemb * size, name);
     }
     /* Initialize new memory */
     memset((void*)((size_t)res + old_nmemb * size), 0, (nmemb - old_nmemb) * size);

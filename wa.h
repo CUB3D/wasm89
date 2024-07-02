@@ -129,6 +129,15 @@ typedef struct Options {
 
 
 typedef struct Module {
+    // Runtime state
+    uint32_t    pc;                // program counter
+    int         sp;                // operand stack pointer
+    int         fp;                // current frame pointer into stack
+    StackValue  stack[STACK_SIZE]; // main operand stack
+    int         csp;               // callstack pointer
+    Frame       callstack[CALLSTACK_SIZE]; // callstack
+    uint32_t    br_table[BR_TABLE_SIZE]; // br_table branch indexes
+
     char       *path;           // file path of the wasm module
     Options     options;        // Config options
 
@@ -151,15 +160,6 @@ typedef struct Module {
 
     uint32_t    global_count;   // number of globals
     StackValue *globals;        // globals
-
-    // Runtime state
-    uint32_t    pc;                // program counter
-    int         sp;                // operand stack pointer
-    int         fp;                // current frame pointer into stack
-    StackValue  stack[STACK_SIZE]; // main operand stack
-    int         csp;               // callstack pointer
-    Frame       callstack[CALLSTACK_SIZE]; // callstack
-    uint32_t    br_table[BR_TABLE_SIZE]; // br_table branch indexes
 } Module;
 
 //

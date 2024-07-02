@@ -166,7 +166,7 @@ if (f)
   bytes = malloc (byte_count);
   if (bytes)
   {
-    fread (bytes, 1, byte_count, f);
+    int r = fread (bytes, 1, byte_count, f);
   }
   fclose (f);
 }
