@@ -5,3 +5,5 @@ all:
 check:
 	clang-check --analyze platform.c thunk.c util.c wa.c --extra-arg="-std=c89"
 
+tb:
+	clang platform.c thunk.c util.c wa.c -std=c11 -g -O2 -lm -shared -fPIC -o bin/libwasm89.so

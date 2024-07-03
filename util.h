@@ -32,6 +32,7 @@ void wa_debug(char* c, ...);
 void wa_info(char* c, ...);
 void wa_warn(char* c, ...);
 void wa_error(char* c, ...);
+void wa_trace(char* c, ...);
 
 /* type readers */
 
@@ -159,5 +160,6 @@ static double wa_fmin(double a, double b) {
     if (c==0 && a==b) { return _signbit(a) ? a : b; }
     return c;
 }
+bool should_trace(void);
 
 #endif

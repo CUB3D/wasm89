@@ -11,6 +11,8 @@ This is a port of [wac-esp](https://github.com/grassel/wac-esp) with the followi
 - Replaced c89 missing float ops
 - Moved inline variable definitions to start of function
 - Added `extern "C"` guards for use from c++
+- Added support for "Sign Extention Extension"
+- Add test environment
 
 ### Compiler requirements:
 This currently requires the following non-standard features, pull requests to change this are welcome:

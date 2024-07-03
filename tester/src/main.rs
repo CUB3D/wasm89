@@ -17,6 +17,10 @@ enum Arg {
     I32{
         value: String,
     },
+    #[serde(rename = "i64")]
+    I64{
+        value: String,
+    },
     #[serde(rename = "f32")]
     F32{
         value: String,
@@ -35,6 +39,14 @@ impl Arg {
                     value_ty: 0x7f,
                     v: SVV {
                         i32: u32::from_str(&value).unwrap() as i32,
+                    }
+                }
+            }
+            Arg::I64 { value } => {
+                SV {
+                    value_ty: 0x7e,
+                    v: SVV {
+                        i64: u64::from_str(&value).unwrap() as i64,
                     }
                 }
             }
@@ -79,6 +91,7 @@ enum C {
     #[serde(rename = "assert_return")]
     AssertReturn{
         action: A,
+        line: u64,
         expected: Vec<Arg>,
     },
     #[serde(rename = "assert_invalid")]
@@ -104,6 +117,15 @@ struct O {
     b: bool,
     c: bool,
 }
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum SafeSV {
+    U32(u32),
+    I32(i32),
+    U64(u64),
+    I64(i64),
+    F32(f32),
+    F64(f64)
+}
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -121,6 +143,18 @@ union  SVV {
 struct SV {
     value_ty: u8,
     v: SVV,
+}
+
+impl SV {
+    fn safe(&self) ->SafeSV {
+        match self.value_ty {
+            0x7e => SafeSV::I64(unsafe { self.v.i64 }),
+            0x7f => SafeSV::I32(unsafe { self.v.i32 }),
+            0x7d => SafeSV::F32(unsafe { self.v.f32 }),
+            0x7c => SafeSV::F64(unsafe { self.v.f64 }),
+            _ => panic!()
+        }
+    }
 }
 
 impl PartialEq<Self> for SV {
@@ -156,8 +190,42 @@ struct Module {
     stack: [SV; 4*1024],
 }
 
+
+macro_rules! test {
+    ($([$name: ident, $path: expr]),*,) => {
+        $(
+            #[test]
+            pub fn $name() {
+                run_test($path)
+            }
+        )*
+    };
+}
+
+test! {
+    [test_i32, "i32"],
+    [test_i64, "i64"],
+    //[test_call, "call"],
+    [test_comments, "comments"],
+    [test_int_exprs, "int_exprs"],
+    [test_int_literals, "int_literals"],
+    [test_labels, "labels"],
+   // [test_load, "load"],
+
+   // [test_if, "if"],
+    // floats:
+    // [test_address, "address"],
+    //[test_const, "const"]
+
+    // opc:
+  //  [test_nop, "nop"]
+}
+
 fn main() {
 
+}
+
+pub fn run_test(testset: &'static str) {
     let (load_module, get_export_fidx, invoke) = unsafe {
         let l = libc::dlopen(c"../bin/libwasm89.so".as_ptr(), libc::RTLD_NOW);
         let load_module = libc::dlsym(l, c"load_module".as_ptr());
@@ -171,7 +239,9 @@ fn main() {
         (load_module, get_export_fidx, invoke)
     };
 
-    let testset = "i32";
+    // let testset = "i32";
+    // let testset = "i64";
+    // let testset = "address";
 
     // let conf = PathBuf::from_str("res/const/const.json").unwrap();
     let conf = PathBuf::from_str(&format!("res/{testset}/{testset}.json")).unwrap();
@@ -190,29 +260,29 @@ fn main() {
                     b: false,
                     c: false,
                 });
-                unsafe {
-                    m.as_mut().unwrap().fp = 0;
-                    let sp = m.as_mut().unwrap().sp+1;
-                    m.as_mut().unwrap().stack[sp as usize] = SV {
-                        value_ty: 0x7f,
-                        v: SVV {
-                            u32: 0x1234
-                        }
-                    };
-                    m.as_mut().unwrap().sp = sp;
-
-                }
+                // unsafe {
+                //     m.as_mut().unwrap().fp = 0;
+                //     let sp = m.as_mut().unwrap().sp+1;
+                //     m.as_mut().unwrap().stack[sp as usize] = SV {
+                //         value_ty: 0x7f,
+                //         v: SVV {
+                //             u32: 0x1234
+                //         }
+                //     };
+                //     m.as_mut().unwrap().sp = sp;
+                //
+                // }
             }
-            C::AssertReturn { action, expected } => {
+            C::AssertReturn { action, expected, line } => {
                 match action {
                     A::Invoke { field, args } => {
-                        print!("{testset}:{field}... ");
+                        //print!("{testset}:{field}... ");
 
                         unsafe {
                             m.as_mut().unwrap().fp = m.as_mut().unwrap().sp;
                         }
                         for a in args {
-                            let sp = unsafe { m.as_mut().unwrap().sp }+1;
+                            let sp = unsafe { m.as_mut().unwrap().sp }.wrapping_add(1);
 
                             unsafe {
                                 m.as_mut().unwrap().stack[sp as usize] = a.sv();
@@ -222,6 +292,7 @@ fn main() {
 
                         let fs = CString::new(field.clone()).unwrap();
                         let f = get_export_fidx(m, fs.as_ptr());
+                        // println!("F = {f}");
                         invoke(m, f);
 
                         assert!(expected.len() < 2);
@@ -229,14 +300,18 @@ fn main() {
                             let res = unsafe {
                                 let sp = m.as_mut().unwrap().sp;
                                 let res = m.as_mut().unwrap().stack[sp as usize];
-                                m.as_mut().unwrap().sp = sp - 1;
+                                m.as_mut().unwrap().sp = sp.wrapping_sub(1);
                                 res
                             };
 
-                            if res != exp.sv() {
-                                println!("{}", console::style("failed").red());
+                            if res.safe() != exp.sv().safe() {
+                                println!("field {testset}:{field}::{line} failed:");
+                                println!("{:?} / {:x?}", res.safe(), res.safe());
+                                println!("{:?} / {:x?}", exp.sv().safe(), exp.sv().safe());
+                                panic!()
+                                //println!("{}", console::style("failed").red());
                            } else {
-                                println!("{}", console::style("passed").green());
+                                //println!("{}", console::style("passed").green());
                             }
                         }
                     }

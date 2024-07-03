@@ -12,6 +12,7 @@
 static int isnan(double x) { return (x != x); }
 #endif
 
+
 static uint32_t popcnt( uint32_t x )
 {
     x -= ((x >> 1) & 0x55555555);
@@ -31,36 +32,32 @@ static uint32_t clz( uint32_t x )
     return 32 - popcnt(x);
 }
 
-static uint32_t clzll( uint64_t x ) {
-    uint32_t a = 0;
-    for(a=0; a < 64; a++) {
-        uint64_t mask = ((uint64_t)1) << ( ((uint64_t)63) - ((uint64_t)a) );
-        if((x & mask) != 0) {
-            return a;
-        }
-    }
-    return 64;
-}
 
 static uint32_t popcntll( uint64_t x ) {
-    uint32_t a = 0;
+    uint64_t a = 0;
+    int s = 0;
     for(a=0; a < 64; a++) {
-        uint64_t mask = ((uint64_t)1) << ( ((uint64_t)63) - ((uint64_t)a) );
-        if((x & mask) == 0 ) {
-            return a;
+        uint64_t mask = ((uint64_t)1 << a );
+        if((x & mask) != 0 ) {
+		s++;
         }
     }
-    return 64;
+    return s;
+    
+}
+
+static uint32_t clzll( uint64_t x ) {
+    x |= (x >> 1);
+    x |= (x >> 2);
+    x |= (x >> 4);
+    x |= (x >> 8);
+    x |= (x >> 16);
+    x |= (x >> 32);
+    return 64 - popcntll(x);
 }
 
 static uint32_t ctzll( uint64_t x ) {
-    uint32_t a = 0;
-    for(a=0; a < 64; a++) {
-        if((x & (1<<a)) == (1<<a) ) {
-            return a;
-        }
-    }
-    return 64;
+    return popcntll((x & -x) - 1);
 }
 
 static uint32_t ctz( uint32_t x )
@@ -696,10 +693,10 @@ bool interpret(Module *m) {
         cur_pc = m->pc;
         m->pc += 1;
 
-        if (should_trace()) {
-            dump_stacks(m);
-            wa_info("    0x%x <0x%x/%s>\n", cur_pc, opcode, OPERATOR_INFO[opcode]);
-        }
+        //if (should_trace()) {
+        //    dump_stacks(m);
+            //fprintf(stderr, "    0x%x <0x%x/%s>\n", cur_pc, opcode, OPERATOR_INFO[opcode]);
+        //}
 
         switch (opcode) {
 
@@ -1525,11 +1522,20 @@ case 0x8a:
                    }
                    stack[m->sp].value.uint32 = stack[m->sp].value.f64;
                    stack[m->sp].value_type = I32; break;  // i32.trunc_u/f64
-        case 0xac: stack[m->sp].value.uint64 = stack[m->sp].value.uint32;
-                   sext_32_64(&stack[m->sp].value.uint64);
-                   stack[m->sp].value_type = I64; break;  // i64.extend_s/i32
-        case 0xad: stack[m->sp].value.uint64 = stack[m->sp].value.uint32;
-                   stack[m->sp].value_type = I64; break;  // i64.extend_u/i32
+        case 0xac:{ // i64.extend_s/i32
+		int og = stack[m->sp].value.uint32;
+		stack[m->sp].value.uint64 = stack[m->sp].value.uint32;
+                sext_32_64(&stack[m->sp].value.uint64);
+                stack[m->sp].value_type = I64;
+		fprintf(stderr, "ext %x -> %x\n", og, stack[m->sp].value.uint64);
+		break;
+		}
+	case 0xad:{  
+		fprintf(stderr, "ext %x\n", stack[m->sp].value.uint64);
+		stack[m->sp].value.uint64 = stack[m->sp].value.uint32;
+                stack[m->sp].value_type = I64;
+		break;  // i64.extend_u/i32
+   	}
         case 0xae: if (isnan(stack[m->sp].value.f32)) {
                        sprintf(exception, "invalid conversion to integer");
                        return false;
@@ -1598,8 +1604,31 @@ case 0x8a:
                    stack[m->sp].value_type = F32; break;  // f32.reinterpret/i32
         case 0xbf: stack[m->sp].value_type = F64; break;  // f64.reinterpret/i64
 
+	/* Sign extend ext */
+	case 0xc0:
+		stack[m->sp].value.uint32 &= 0xFF;
+                sext_8_32(&stack[m->sp].value.uint32);
+		break;
+	case 0xc1:
+		stack[m->sp].value.uint32 &= 0xFFFF;
+                sext_16_32(&stack[m->sp].value.uint32);
+		break;
+	case 0xc2:
+		stack[m->sp].value.uint64 &= 0xFF;
+                sext_8_64(&stack[m->sp].value.uint64);
+		break;
+	case 0xc3:
+		stack[m->sp].value.uint64 &= 0xFFFF;
+                sext_16_64(&stack[m->sp].value.uint64);
+		break;
+	case 0xc4:
+		stack[m->sp].value.uint64 &= 0xFFFFFFFF;
+                sext_32_64(&stack[m->sp].value.uint64);
+		break;
+
         default:
             sprintf(exception, "unrecognized opcode 0x%x", opcode);
+            fprintf(stderr, "unrecognized opcode 0x%x\n", opcode);
             return false;
         }
     }
