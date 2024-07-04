@@ -3,3 +3,4 @@
 *.xcworkspace
 bin/*
 *.plist
+*.swp

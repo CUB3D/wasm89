@@ -1,9 +1,37 @@
 #![feature(c_str_literals)]
 
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
 use std::path::PathBuf;
 use std::str::FromStr;
 use serde::Deserialize;
+#[repr(C)]
+#[derive(Debug)]
+pub enum S {
+    Ok = 0,
+    Err = 1,
+}
+
+#[repr(C)]
+pub struct R {
+    status: S,
+    msg: *const i8,
+}
+
+impl R {
+    pub fn safe_r(&self) -> SafeR {
+        unsafe {
+            match self.status {
+                S::Ok => SafeR::Ok,
+                S::Err => SafeR::Err(CStr::from_ptr(self.msg).to_str().unwrap().to_string())
+            }
+        }
+    }
+}
+#[derive(Debug)]
+pub enum SafeR {
+    Ok,
+    Err(String)
+}
 
 #[derive(Debug, Deserialize)]
 struct T {
@@ -108,6 +136,11 @@ enum C {
     AssertTrap {
         // action: A,
         // expected: Vec<Arg>,
+    },
+    #[serde(rename = "assert_exhaustion")]
+    AssertExhaustion {
+        // action: A,
+        // expected: Vec<Arg>,
     }
 }
 
@@ -205,20 +238,22 @@ macro_rules! test {
 test! {
     [test_i32, "i32"],
     [test_i64, "i64"],
-    //[test_call, "call"],
     [test_comments, "comments"],
     [test_int_exprs, "int_exprs"],
     [test_int_literals, "int_literals"],
     [test_labels, "labels"],
+    [test_br, "br"],
+    // [test_align, "align"],
    // [test_load, "load"],
+   //  [test_call, "call"],
 
    // [test_if, "if"],
     // floats:
     // [test_address, "address"],
-    //[test_const, "const"]
+    // [test_const, "const"],
 
     // opc:
-  //  [test_nop, "nop"]
+   // [test_nop, "nop"],
 }
 
 fn main() {
@@ -233,7 +268,7 @@ pub fn run_test(testset: &'static str) {
         let get_export_fidx = libc::dlsym(l, c"get_export_fidx".as_ptr());
         let get_export_fidx = core::mem::transmute::<_, extern "C" fn(*mut Module, *const i8)->usize>(get_export_fidx);
         let invoke = libc::dlsym(l, c"invoke".as_ptr());
-        let invoke = core::mem::transmute::<_, extern "C" fn(*mut Module, usize)->usize>(invoke);
+        let invoke = core::mem::transmute::<_, extern "C" fn(*mut Module, usize)->R>(invoke);
         println!("{:x}", invoke as usize);
 
         (load_module, get_export_fidx, invoke)
@@ -293,7 +328,11 @@ pub fn run_test(testset: &'static str) {
                         let fs = CString::new(field.clone()).unwrap();
                         let f = get_export_fidx(m, fs.as_ptr());
                         // println!("F = {f}");
-                        invoke(m, f);
+                        let r = invoke(m, f);
+                        if let SafeR::Err(s) = r.safe_r() {
+                            panic!("{s}");
+                        }
+                        // println!("{:?}", r.safe_r());
 
                         assert!(expected.len() < 2);
                         if let Some(exp) = expected.first() {
@@ -326,6 +365,7 @@ pub fn run_test(testset: &'static str) {
             C::AssertTrap { .. } => {
                 // print!("{testset}:{field}... ");
             }
+            C::AssertExhaustion { .. } => {}
         }
     }
 }

@@ -6,6 +6,7 @@ extern "C" {
 #endif
 
 #include "fixes.h"
+#include "wa_result.h"
 
 #define WA_MAGIC   0x6d736100
 #define WA_VERSION 0x01
@@ -171,11 +172,11 @@ uint64_t get_type_mask(Type *type);
 char *value_repr(StackValue *v);
 void (*setup_thunk_in(uint32_t fidx))(void);
 void setup_call(Module *m, uint32_t fidx);
-bool interpret(Module *m);
+result_t interpret(Module *m);
 
 uint32_t get_export_fidx(Module *m, char *name);
 Module *load_module(uint8_t *bytes, uint32_t byte_count, Options options);
-bool invoke(Module *m, uint32_t fidx);
+result_t invoke(Module *m, uint32_t fidx);
 
 #ifdef __cplusplus
 }

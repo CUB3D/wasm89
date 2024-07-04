@@ -141,7 +141,8 @@ void init_wac_eps(void) {
 
 int main(int argc, char **argv) {
     char     *mod_path;
-    int       fidx = 0, res = 0;
+    int       fidx = 0;
+    result_t res;
     uint8_t  *bytes = NULL;
     int       byte_count;
     Options opts;
@@ -197,8 +198,8 @@ if (f)
     }
     res = invoke(m, fidx);
 
-    if (!res) {
-        wa_error("Exception: %s\n", exception);
+    if (res_err(res)) {
+        wa_error("Exception: %s\n", res_err_msg(res));
         return 1;
     }
 

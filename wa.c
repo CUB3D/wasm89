@@ -7,6 +7,7 @@
 #include "platform.h"
 #include "thunk.h"
 #include "wa.h"
+#include "wa_result.h"
 
 #ifndef isnan
 static int isnan(double x) { return (x != x); }
@@ -309,9 +310,6 @@ uint32_t LOAD_SIZE[] = {
     4, 8, 4, 8, 1, 2, 1, 2, 4};               /* stores */
 
 
-// global exception message
-char  exception[4096];
-
 // Static definition of block_types
 uint32_t block_type_results[4][1] = {{I32}, {I64}, {F32}, {F64}};
 
@@ -603,7 +601,7 @@ Block *pop_block(Module *m) {
     // Validate the return value
     if (t->result_count == 1) {
         if (m->stack[m->sp].value_type != t->results[0]) {
-            sprintf(exception, "call type mismatch");
+          //  sprintf(exception, "call type mismatch");
             return NULL;
         }
     }
@@ -668,7 +666,7 @@ void setup_call(Module *m, uint32_t fidx) {
     return;
 }
 
-bool interpret(Module *m) {
+result_t interpret(Module *m) {
     int ii;
 	uint32_t didx,prev_pages,delta;
     uint8_t     *bytes = m->bytes;
@@ -704,23 +702,20 @@ bool interpret(Module *m) {
         // Control flow operators
         //
         case 0x00:  // unreachable
-            sprintf(exception, "%s", "unreachable");
-            return false;
+            return res_new_err("Unreachable");
         case 0x01:  // nop
             continue;
         case 0x02:  // block
             read_LEB(bytes, &m->pc, 32);  // ignore block type
             if (m->csp >= CALLSTACK_SIZE) {
-                sprintf(exception, "call stack exhausted");
-                return false;
+            return res_new_err("call stack exhausted");
             }
             push_block(m, m->block_lookup[cur_pc], m->sp);
             continue;
         case 0x03:  // loop
             read_LEB(bytes, &m->pc, 32);  // ignore block type
             if (m->csp >= CALLSTACK_SIZE) {
-                sprintf(exception, "call stack exhausted");
-                return false;
+            return res_new_err("call stack exhausted");
             }
             push_block(m, m->block_lookup[cur_pc], m->sp);
             continue;
@@ -728,8 +723,7 @@ bool interpret(Module *m) {
             read_LEB(bytes, &m->pc, 32);  // ignore block type
             block = m->block_lookup[cur_pc];
             if (m->csp >= CALLSTACK_SIZE) {
-                sprintf(exception, "call stack exhausted");
-                return false;
+            return res_new_err("call stack exhausted");
             }
             push_block(m, block, m->sp);
 
@@ -758,7 +752,7 @@ bool interpret(Module *m) {
         case 0x0b:  // end
             block = pop_block(m);
             if (block == NULL) {
-                return false; // an exception (set by pop_block)
+                return res_new_err("pop_block"); // an exception (set by pop_block)
             }
             wa_trace("      - of %s\n", block_repr(block));
             if (block->block_type == 0x00) { // Function
@@ -772,12 +766,12 @@ bool interpret(Module *m) {
                 
                 if (m->csp == -1) {
                     // Return to top-level
-                    return true;
+                    return res_new_ok();
                 } else {
                     // Keep going at return address
                 }
             } else if (block->block_type == 0x01) { // init_expr
-                return true;
+return res_new_ok();
             } else {  // Block
                 // End of block/loop/if, keep going
             }
@@ -805,9 +799,9 @@ bool interpret(Module *m) {
             count = read_LEB(bytes, &m->pc, 32);
             if (count > BR_TABLE_SIZE) {
                 // TODO: check this prior to runtime
-                sprintf(exception, "br_table size %d exceeds max %d\n",
-                        count, BR_TABLE_SIZE);
-                return false;
+                result_t err;
+                asprintf(&err.msg, "br_table size %d exceeds max %d\n", count, BR_TABLE_SIZE);
+                return err;
             }
             for(ii=0; ii<count; ii++) {
                 m->br_table[ii] = read_LEB(bytes, &m->pc, 32);
@@ -850,8 +844,7 @@ bool interpret(Module *m) {
                 thunk_out(m, fidx);   // import/thunk call
             } else {
                 if (m->csp >= CALLSTACK_SIZE) {
-                    sprintf(exception, "call stack exhausted");
-                    return false;
+                    return res_new_err("call stack exhausted");
                 }
                 setup_call(m, fidx);  // regular function call
                 
@@ -875,9 +868,9 @@ bool interpret(Module *m) {
                 val = val - (uint32_t)(uint64_t)m->table.entries;
             }
             if (val >= m->table.maximum) {
-                sprintf(exception, "undefined element 0x%x (max: 0x%x) in table",
-                        val, m->table.maximum);
-                return false;
+                result_t err;
+                asprintf(&err.msg, "undefined element 0x%x (max: 0x%x) in table", val, m->table.maximum);
+                return err;
             }
 
             fidx = m->table.entries[val];
@@ -893,25 +886,21 @@ bool interpret(Module *m) {
                 Type *ftype = func->type;
 
                 if (m->csp >= CALLSTACK_SIZE) {
-                    sprintf(exception, "call stack exhausted");
-                    return false;
+                    return res_new_err("call stack exhausted");
                 }
                 if (ftype->mask != m->types[tidx].mask) {
-                    sprintf(exception, "indirect call type mismatch (call type and function type differ)");
-                    return false;
+                    return res_new_err("indirect call type mismatch (call type and function type differ)");
                 }
 
                 setup_call(m, fidx);   // regular function call
 
                 // Validate signatures match
                 if (ftype->param_count + func->local_count != m->sp - m->fp + 1) {
-                    sprintf(exception, "indirect call type mismatch (param counts differ)");
-                    return false;
+                    return res_new_err("indirect call type mismatch (param counts differ)");
                 }
                 for (f=0; f<ftype->param_count; f++) {
                     if (ftype->params[f] != m->stack[m->fp+f].value_type) {
-                        sprintf(exception, "indirect call type mismatch (param types differ)");
-                        return false;
+                        return res_new_err("indirect call type mismatch (param types differ)");
                     }
                 }
 
@@ -1045,8 +1034,7 @@ bool interpret(Module *m) {
                 if (overflow) {
                     wa_warn("memory start: %p, memory end: %p, maddr: %p\n",
                         m->memory.bytes, mem_end, maddr);
-                    sprintf(exception, "out of bounds memory access");
-                    return false;
+                    return res_new_err("out of bounds memory access");
                 }
             }
             stack[++m->sp].value.uint64 = 0; // initialize to 0
@@ -1120,8 +1108,7 @@ case 0x3e:
                 if (overflow) {
                     wa_warn("memory start: %p, memory end: %p, maddr: %p\n",
                         m->memory.bytes, mem_end, maddr);
-                    sprintf(exception, "out of bounds memory access");
-                    return false;
+                    return res_new_err("out of bounds memory access");
                 }
             }
             switch (opcode) {
@@ -1354,8 +1341,7 @@ case 0x3e:
             b = stack[m->sp].value.uint32;
             m->sp -= 1;
             if (opcode >= 0x6d && opcode <= 0x70 && b == 0) {
-                sprintf(exception, "integer divide by zero");
-                return false;
+                return res_new_err("integer divide by zero");
             }
             switch (opcode) {
             //case 0x6a: o = __builtin_add_overflow(a, b, &c); break;  // i32.add
@@ -1364,8 +1350,7 @@ case 0x3e:
             case 0x6b: c = a - b; break;  // i32.sub
             case 0x6c: c = a * b; break;  // i32.mul
             case 0x6d: if (a == 0x80000000 && b == -1) {
-                           sprintf(exception, "integer overflow");
-                           return false;
+                return res_new_err("integer divide by zero");
                        }
                        c = (int32_t)a / (int32_t)b; break;  // i32.div_s
             case 0x6e: c = a / b; break;  // i32.div_u
@@ -1411,16 +1396,14 @@ case 0x8a:
             e = stack[m->sp].value.uint64;
             m->sp -= 1;
             if (opcode >= 0x7f && opcode <= 0x82 && e == 0) {
-                sprintf(exception, "integer divide by zero");
-                return false;
+                return res_new_err("integer divide by zero");
             }
             switch (opcode) {
             case 0x7c: f = d + e; break;  // i64.add
             case 0x7d: f = d - e; break;  // i64.sub
             case 0x7e: f = d * e; break;  // i64.mul
             case 0x7f: if (d == 0x8000000000000000 && e == -1) {
-                           sprintf(exception, "integer overflow");
-                           return false;
+                return res_new_err("integer divide by zero");
                        }
                        f = (int64_t)d / (int64_t)e; break;  // i64.div_s
             case 0x80: f = d / e; break;  // i64.div_u
@@ -1483,42 +1466,34 @@ case 0x8a:
         case 0xa7: stack[m->sp].value.uint64 &= 0x00000000ffffffff;
                    stack[m->sp].value_type = I32; break;  // i32.wrap/i64
         case 0xa8: if (isnan(stack[m->sp].value.f32)) {
-                       sprintf(exception, "invalid conversion to integer");
-                       return false;
+            return res_new_err("invalid conversion to integer");
                    } else if (stack[m->sp].value.f32 >= (float)INT32_MAX ||
                               stack[m->sp].value.f32 < (float)INT32_MIN) {
-                       sprintf(exception, "integer overflow");
-                       return false;
+            return res_new_err("integer overflow");
                    }
                    stack[m->sp].value.int32 = stack[m->sp].value.f32;
                    stack[m->sp].value_type = I32; break;  // i32.trunc_s/f32
         case 0xa9: if (isnan(stack[m->sp].value.f32)) {
-                       sprintf(exception, "invalid conversion to integer");
-                       return false;
+            return res_new_err("invalid conversion to integer");
                    } else if (stack[m->sp].value.f32 >= (float)UINT32_MAX ||
                               stack[m->sp].value.f32 <= -1) {
-                       sprintf(exception, "integer overflow");
-                       return false;
+            return res_new_err("integer overflow");
                    }
                    stack[m->sp].value.uint32 = stack[m->sp].value.f32;
                    stack[m->sp].value_type = I32; break;  // i32.trunc_u/f32
         case 0xaa: if (isnan(stack[m->sp].value.f64)) {
-                       sprintf(exception, "invalid conversion to integer");
-                       return false;
+            return res_new_err("invalid conversion to integer");
                    } else if (stack[m->sp].value.f64 > (double)INT32_MAX ||
                               stack[m->sp].value.f64 < (double)INT32_MIN) {
-                       sprintf(exception, "integer overflow");
-                       return false;
+            return res_new_err("integer overflow");
                    }
                    stack[m->sp].value.int32 = stack[m->sp].value.f64;
                    stack[m->sp].value_type = I32; break;  // i32.trunc_s/f64
         case 0xab: if (isnan(stack[m->sp].value.f64)) {
-                       sprintf(exception, "invalid conversion to integer");
-                       return false;
+            return res_new_err("invalid conversion to integer");
                    } else if (stack[m->sp].value.f64 > UINT32_MAX ||
                               stack[m->sp].value.f64 <= -1) {
-                       sprintf(exception, "integer overflow");
-                       return false;
+            return res_new_err("integer overflow");
                    }
                    stack[m->sp].value.uint32 = stack[m->sp].value.f64;
                    stack[m->sp].value_type = I32; break;  // i32.trunc_u/f64
@@ -1537,42 +1512,34 @@ case 0x8a:
 		break;  // i64.extend_u/i32
    	}
         case 0xae: if (isnan(stack[m->sp].value.f32)) {
-                       sprintf(exception, "invalid conversion to integer");
-                       return false;
+            return res_new_err("invalid conversion to integer");
                    } else if (stack[m->sp].value.f32 >= (float)INT64_MAX ||
                               stack[m->sp].value.f32 < (float)INT64_MIN) {
-                       sprintf(exception, "integer overflow");
-                       return false;
+            return res_new_err("integer overflow");
                    }
                    stack[m->sp].value.int64 = stack[m->sp].value.f32;
                    stack[m->sp].value_type = I64; break;  // i64.trunc_s/f32
         case 0xaf: if (isnan(stack[m->sp].value.f32)) {
-                       sprintf(exception, "invalid conversion to integer");
-                       return false;
+            return res_new_err("invalid conversion to integer");
                    } else if (stack[m->sp].value.f32 >= (float)UINT64_MAX ||
                               stack[m->sp].value.f32 <= -1) {
-                       sprintf(exception, "integer overflow");
-                       return false;
+            return res_new_err("integer overflow");
                    }
                    stack[m->sp].value.uint64 = stack[m->sp].value.f32;
                    stack[m->sp].value_type = I64; break;  // i64.trunc_u/f32
         case 0xb0: if (isnan(stack[m->sp].value.f64)) {
-                       sprintf(exception, "invalid conversion to integer");
-                       return false;
+            return res_new_err("invalid conversion to integer");
                    } else if (stack[m->sp].value.f64 >= (double)INT64_MAX ||
                               stack[m->sp].value.f64 < (double) INT64_MIN) {
-                       sprintf(exception, "integer overflow");
-                       return false;
+            return res_new_err("integer overflow");
                    }
                    stack[m->sp].value.int64 = stack[m->sp].value.f64;
                    stack[m->sp].value_type = I64; break;  // i64.trunc_s/f64
         case 0xb1: if (isnan(stack[m->sp].value.f64)) {
-                       sprintf(exception, "invalid conversion to integer");
-                       return false;
+            return res_new_err("invalid conversion to integer");
                    } else if (stack[m->sp].value.f64 >= (double)UINT64_MAX ||
                               stack[m->sp].value.f64 <= -1) {
-                       sprintf(exception, "integer overflow");
-                       return false;
+            return res_new_err("integer overflow");
                    }
                    stack[m->sp].value.uint64 = stack[m->sp].value.f64;
                    stack[m->sp].value_type = I64; break;  // i64.trunc_u/f64
@@ -1626,13 +1593,14 @@ case 0x8a:
                 sext_32_64(&stack[m->sp].value.uint64);
 		break;
 
-        default:
-            sprintf(exception, "unrecognized opcode 0x%x", opcode);
-            fprintf(stderr, "unrecognized opcode 0x%x\n", opcode);
-            return false;
+        default: 
+        {
+            result_t err;
+                asprintf(&err.msg, "unrecognized opcode 0x%x\n", opcode);
+                return err;}
         }
     }
-    return false; // We shouldn't reach here
+    return res_new_err("Unreachable"); // We shouldn't reach here
 }
 
 void run_init_expr(Module *m, uint8_t type, uint32_t *pc) {
@@ -2130,7 +2098,7 @@ uint32_t id;
 
     if (m->start_function != -1) {
         uint32_t fidx = m->start_function;
-        bool     result;
+        result_t     result;
         wa_warn("Running start function 0x%x ('%s')\n",
              fidx, m->functions[fidx].export_name);
 
@@ -2144,13 +2112,13 @@ uint32_t id;
 
         if (m->csp < 0) {
             // start function was a direct external call
-            result = true;
+            result = res_new_ok();
         } else {
             // run the function setup by setup_call
             result = interpret(m);
         }
-        if (!result) {
-            FATAL("Exception: %s\n", exception);
+        if (res_err(result)) {
+            FATAL("Exception: %s\n", res_err_msg(result));
         }
     }
 
@@ -2159,8 +2127,8 @@ uint32_t id;
 
 // if entry == NULL,  attempt to invoke 'main' or '_main'
 // Return value of false means exception occured
-bool invoke(Module *m, uint32_t fidx) {
-    bool      result;
+result_t invoke(Module *m, uint32_t fidx) {
+    result_t      result;
 
     if (should_trace()) { dump_stacks(m); }
 
