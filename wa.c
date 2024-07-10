@@ -67,12 +67,16 @@ static uint32_t ctz( uint32_t x )
 }
 
 static bool wa_signbit(double x) {
-    return x < 0;
+    union {
+        double d;
+        uint64_t u64;
+    } u = { x };
+    return u.u64 >> 64;
 }
 
 /* this is wrong but close enough*/
-static uint32_t wa_rint(double x) {
-        return floor(x);
+static double wa_rint(double x) {
+        return (double)floor(x);
 }
 
 
@@ -310,7 +314,7 @@ uint32_t LOAD_SIZE[] = {
     4, 8, 4, 8, 1, 2, 1, 2, 4};               /* stores */
 
 
-// Static definition of block_types
+/* Static definition of block_types*/
 uint32_t block_type_results[4][1] = {{I32}, {I64}, {F32}, {F64}};
 
 Type block_types[5] = {
@@ -321,15 +325,65 @@ Type block_types[5] = {
     { BLOCK, 0,0, 1, block_type_results[3], 0}
 };
 
-Type *get_block_type(uint8_t value_type) {
+static Type *get_block_type(Module* m, uint8_t value_type) {
     switch (value_type) {
     case 0x40: return &block_types[0];
     case I32:  return &block_types[1];
     case I64:  return &block_types[2];
     case F32:  return &block_types[3];
     case F64:  return &block_types[4];
-    default:   FATAL("invalid block_type value_type: %d\n", value_type);
-               return NULL;
+    case 0x70:  /* ref type */
+    case 0x6F: /* ext ref */
+    case 0x60: /* func*/
+        FATAL("invalid block_type value_type: %d\n", value_type);
+        return NULL;
+    case 0x7A: /* Reserve*/
+    case 0x79:
+    case 0x78:
+    case 0x77:
+    case 0x76:
+    case 0x75:
+    case 0x74:
+    case 0x73:
+    case 0x72:
+    case 0x71:
+        FATAL("reserved block_type value_type: %d\n", value_type);
+        return NULL;
+    case 0x5F:
+    case 0x5E:
+    case 0x5D:
+    case 0x5C:
+    case 0x5B:
+    case 0x5A:
+    case 0x59:
+    case 0x58:
+    case 0x57:
+    case 0x56:
+    case 0x55:
+    case 0x54:
+    case 0x53:
+    case 0x52:
+    case 0x51:
+    case 0x50:
+    case 0x4F:
+    case 0x4E:
+    case 0x4D:
+    case 0x4C:
+    case 0x4B:
+    case 0x4A:
+    case 0x49:
+    case 0x48:
+    case 0x47:
+    case 0x46:
+    case 0x45:
+    case 0x44:
+    case 0x43:
+    case 0x42:
+    case 0x41:
+        FATAL("reserved block_type value_type: %d\n", value_type);
+        return NULL;
+    default:  
+        return &m->types[value_type];
     }
 }
 
@@ -541,7 +595,7 @@ void find_blocks(Module *m) {
             case 0x04: // if
                 block = acalloc(1, sizeof(Block), "Block");
                 block->block_type = opcode;
-                block->type = get_block_type(m->bytes[pos+1]);
+                block->type = get_block_type(m, m->bytes[pos+1]);
                 block->start_addr = pos;
                 blockstack[++top] = block;
                 m->block_lookup[pos] = block;
@@ -1608,7 +1662,7 @@ void run_init_expr(Module *m, uint8_t type, uint32_t *pc) {
     Block block = {  0x01,0,
                     NULL,0,0,
                     0,0,0,0,0,0,0,0 };
-    block.type = get_block_type(type);
+    block.type = get_block_type(m, type);
     block.start_addr = *pc;
     m->pc = *pc;
     push_block(m, &block, m->sp);
