@@ -1,9 +1,8 @@
-#![feature(c_str_literals)]
-
 use std::ffi::{CStr, CString};
 use std::path::PathBuf;
 use std::str::FromStr;
 use serde::Deserialize;
+
 #[repr(C)]
 #[derive(Debug)]
 pub enum S {
@@ -228,36 +227,69 @@ macro_rules! test {
     ($([$name: ident, $path: expr]),*,) => {
         $(
             #[test]
-            pub fn $name() {
-                run_test($path)
+
+                pub fn $name() {
+                    crate::run_test($path)
             }
         )*
     };
 }
 
-test! {
-    [test_align, "align"],
-    [test_address, "address"],
-    // [test_binary, "binary"],
-    // [test_block, "block"],
-    // [test_br, "br"],
-    // [test_br_if, "br_if"],
-    // [test_br_table, "br_table"],
-    // [test_bulk, "bulk"],
-    // [test_call_ind, "call_indirect"],
-   //  [test_call, "call"],
-    [test_comments, "comments"],
-    [test_const, "const"],
+//find . -name \*.wast | xargs -I{} mkdir {}_
+//find . -name \*.wast | xargs -I{} wast2json {} -o {}_/{}.json
+mod core_test {
+    test! {
+        [address, "address"],
+        [align, "align"],
+        // [binary, "binary"],
+        [binary_leb128, "address"],
+        // [block, "block"],
+        // [br, "br"],
+        // [br_if, "br_if"],
+        // [br_table, "br_table"],
+        // [bulk, "bulk"],
+        // [call, "call"],
+        // [call_indirect, "call_indirect"],
+        [comments, "comments"],
+        [const_, "const"],
+        // [convertions, "convertions"],
+        // [custom, "custom"],
+        // [data, "data"],
+        // [elem, "elem"],
+        [endianness, "endianness"],
+        // [exports, "exports"],
+        [f32, "f32"],
+        [f32_bitwise, "f32_bitwise"],
+        [f32_cmp, "f32_cmp"],
+        [f64, "f64"],
+        [f64_bitwise, "f64_bitwise"],
+        [f64_cmp, "f64_cmp"],
+        // [fac, "fac"],
+        // [float_exprs, "float_exprs"],
+        [float_literals, "float_literals"],
+        // [float_memory, "float_memory"],
+        [float_misc, "float_misc"],
+        [forward, "forward"],
+        // [func, "func"],
+        // [func_ptrs, "func_ptrs"],
+        // [global, "global"],
+        [i32_, "i32"],
+        [i64_, "i64"],
+        // [if_, "if"],
+        // [imports, "imports"],
+        [inline_module, "inline-module"],
+        [int_exprs, "int_exprs"],
+        [int_literals, "int_literals"],
+        [labels, "labels"],
+        // [left_to_right, "left-to-right"],
+        // [linking, "linking"],
+        // [load, "load"],
+        [local_get, "local_get"],
 
 
-    [test_i32, "i32"],
-    [test_i64, "i64"],
-    // [test_if, "if"],
-    [test_int_exprs, "int_exprs"],
-    [test_iant_literals, "int_literals"],
-    [test_labels, "labels"],
-   // [test_load, "load"],
+
    // [test_nop, "nop"],
+}
 }
 
 fn main() {
@@ -283,7 +315,7 @@ pub fn run_test(testset: &'static str) {
     // let testset = "address";
 
     // let conf = PathBuf::from_str("res/const/const.json").unwrap();
-    let conf = PathBuf::from_str(&format!("res/{testset}/{testset}.json")).unwrap();
+    let conf = PathBuf::from_str(&format!("res/{testset}.wast_/{testset}.wast.json")).unwrap();
 
     // let t: T = serde_json::from_str(include_str!("../res/nop/nop.json")).unwrap();
     let t: T = serde_json::from_str(&std::fs::read_to_string(&conf).unwrap()).unwrap();

@@ -70,8 +70,9 @@ static bool wa_signbit(double x) {
     union {
         double d;
         uint64_t u64;
-    } u = { x };
-    return u.u64 >> 64;
+    } u;
+    u.d =  x;
+    return u.u64 >> 63;
 }
 
 /* this is wrong but close enough*/
@@ -387,7 +388,7 @@ static Type *get_block_type(Module* m, uint8_t value_type) {
     }
 }
 
-// TODO: calculate this while parsing types
+/* TODO: calculate this while parsing types */
 uint64_t get_type_mask(Type *type) {
 	uint32_t p;
     uint64_t  mask = 0x80;
@@ -403,7 +404,7 @@ uint64_t get_type_mask(Type *type) {
     return mask;
 }
 
-// FIXME: waisting 256Bytes!
+/* FIXME: waisting 256Bytes! */
 char _value_str[256];
 char *value_repr(StackValue *v) {
     memset(_value_str, 0, 256);
@@ -471,12 +472,12 @@ void parse_table_type(Module *m, uint32_t *pos) {
             "Table elem_type 0x%x unsupported",
             m->table.elem_type);
     flags = read_LEB(m->bytes, pos, 32);
-    tsize = read_LEB(m->bytes, pos, 32); // Initial size
+    tsize = read_LEB(m->bytes, pos, 32); /* Initial size */
     m->table.initial = tsize;
     m->table.size = tsize;
-    // Limit maximum to 64K
+    /* Limit maximum to 64K */
     if (flags & 0x1) {
-        tsize = read_LEB(m->bytes, pos, 32); // Max size
+        tsize = read_LEB(m->bytes, pos, 32); /* Max size */
         m->table.maximum = 0x10000 < tsize ? 0x10000 : tsize;
     } else {
         m->table.maximum = 0x10000;
@@ -486,12 +487,12 @@ void parse_table_type(Module *m, uint32_t *pos) {
 
 void parse_memory_type(Module *m, uint32_t *pos) {
     uint32_t flags = read_LEB(m->bytes, pos, 32);
-    uint32_t pages = read_LEB(m->bytes, pos, 32); // Initial size
+    uint32_t pages = read_LEB(m->bytes, pos, 32); /* Initial size */
     m->memory.initial = pages;
     m->memory.pages = pages;
-    // Limit the maximum to 2GB
+    /* Limit the maximum to 2GB */
     if (flags & 0x1) {
-        pages = read_LEB(m->bytes, pos, 32); // Max size
+        pages = read_LEB(m->bytes, pos, 32); /* Max size */
         m->memory.maximum = (uint32_t)fmin(0x8000, pages);
     } else {
         m->memory.maximum = 0x8000;
@@ -504,39 +505,39 @@ void skip_immediates(uint8_t *bytes, uint32_t *pos) {
     uint32_t count, opcode = bytes[*pos];
     *pos = *pos+1;
     switch (opcode) {
-    // varuint1
+    /* varuint1 */
     case 0x3f:
-    case 0x40:    // current_memory, grow_memory
+    case 0x40:    /* current_memory, grow_memory */
         read_LEB(bytes, pos, 1); break;
-    // varuint32, varint32
+    /* varuint32, varint32 */
     case 0x0c:
-case 0x0d:    // br, br_if
-    case 0x10:            // call
+case 0x0d:    /* br, br_if */
+    case 0x10:            /* call */
     case 0x20:
-	case 0x21:    // get/set_local, tee_local, get/set_global
-	case 0x22:    // get/set_local, tee_local, get/set_global
-	case 0x23:    // get/set_local, tee_local, get/set_global
-	case 0x24:    // get/set_local, tee_local, get/set_global
-    case 0x41:            // i32.const
+	case 0x21:    /* get/set_local, tee_local, get/set_global */
+	case 0x22:    /* get/set_local, tee_local, get/set_global */
+	case 0x23:    /* get/set_local, tee_local, get/set_global */
+	case 0x24:    /* get/set_local, tee_local, get/set_global */
+    case 0x41:            /* i32.const */
         read_LEB(bytes, pos, 32); break;
-    // varuint32 + varuint1
-    case 0x11:            // call_indirect
+    /* varuint32 + varuint1 */
+    case 0x11:            /* call_indirect */
         read_LEB(bytes, pos, 1); read_LEB(bytes, pos, 32); break;
-    // varint64
-    case 0x42:            // i64.const
+    /* varint64 */
+    case 0x42:            /* i64.const */
         read_LEB(bytes, pos, 64); break;
-    // uint32
-    case 0x43:            // f32.const
+    /* uint32 */
+    case 0x43:            /* f32.const */
         *pos += 4; break;
-    // uint64
-    case 0x44:            // f64.const
+    /* uint64 */
+    case 0x44:            /* f64.const */
         *pos += 8; break;
-    // block_type
+    /* block_type */
     case 0x02:
     case 3:
-	case 0x04:    // block, loop, if
+	case 0x04:    /* block, loop, if */
         read_LEB(bytes, pos, 7); break;
-    // memory_immediate
+    /* memory_immediate */
 	case 0x28:
 	case 0x29:
 	case 0x2a:
@@ -561,15 +562,15 @@ case 0x0d:    // br, br_if
 	case 0x3d:
 	case 0x3e:
         read_LEB(bytes, pos, 32); read_LEB(bytes, pos, 32); break;
-    // br_table
-    case 0x0e:            // br_table
-        count = read_LEB(bytes, pos, 32); // target count
+    /* br_table */
+    case 0x0e:            /* br_table */
+        count = read_LEB(bytes, pos, 32); /* target count */
         for (i=0; i<count; i++) {
             read_LEB(bytes, pos, 32);
         }
-        read_LEB(bytes, pos, 32); // default target
+        read_LEB(bytes, pos, 32); /* default target */
         break;
-    default:              // no immediates
+    default:              /* no immediates */
         break;
     }
 }
@@ -590,9 +591,9 @@ void find_blocks(Module *m) {
         while (pos <= function->end_addr) {
             opcode = m->bytes[pos];
             switch (opcode) {
-            case 0x02: // block
-            case 0x03: // loop
-            case 0x04: // if
+            case 0x02: /* block */
+            case 0x03: /* loop */
+            case 0x04: /* if */
                 block = acalloc(1, sizeof(Block), "Block");
                 block->block_type = opcode;
                 block->type = get_block_type(m, m->bytes[pos+1]);
@@ -600,21 +601,21 @@ void find_blocks(Module *m) {
                 blockstack[++top] = block;
                 m->block_lookup[pos] = block;
                 break;
-            case 0x05: // else
+            case 0x05: /* else */
                 ASSERT(blockstack[top]->block_type == 0x04,
                        "else not matched with if")
                 blockstack[top]->else_addr = pos+1;
                 break;
-            case 0x0b: // end
+            case 0x0b: /* end */
                 if (pos == function->end_addr) { break; }
                 ASSERT(top >= 0, "blockstack underflow");
                 block = blockstack[top--];
                 block->end_addr = pos;
                 if (block->block_type == 0x03) {
-                    // loop: label after start
+                    /* loop: label after start */
                     block->br_addr = block->start_addr+2;
                 } else {
-                    // block, if: label at end
+                    /* block, if: label at end */
                     block->br_addr = pos;
                 }
                 wa_debug("      block start: 0x%x, end: 0x%x,"
@@ -632,9 +633,7 @@ void find_blocks(Module *m) {
 }
 
 
-//
-// Stack machine (byte code related functions)
-//
+/* Stack machine (byte code related functions) */
 
 void push_block(Module *m, Block *block, int sp) {
     m->csp += 1;
@@ -648,21 +647,21 @@ Block *pop_block(Module *m) {
     Frame *frame = &m->callstack[m->csp--];
     Type *t = frame->block->type;
 
-    // TODO: validate return value if there is one
+    /* TODO: validate return value if there is one */
 
-    m->fp = frame->fp; // Restore frame pointer
+    m->fp = frame->fp; /* Restore frame pointer */
 
-    // Validate the return value
+    /* Validate the return value */
     if (t->result_count == 1) {
         if (m->stack[m->sp].value_type != t->results[0]) {
-          //  sprintf(exception, "call type mismatch");
+          /* sprintf(exception, "call type mismatch"); */
             return NULL;
         }
     }
 
-    // Restore stack pointer
+    /* Restore stack pointer */
     if (t->result_count == 1) {
-        // Save top value as result
+        /* Save top value as result */
         if (frame->sp < m->sp) {
             m->stack[frame->sp+1] = m->stack[m->sp];
             m->sp = frame->sp+1;
@@ -674,23 +673,23 @@ Block *pop_block(Module *m) {
     }
 
     if (frame->block->block_type == 0x00) {
-        // Function, set pc to return address
+        /* Function, set pc to return address */
         m->pc = frame->ra;
     }
 
     return frame->block;
 }
 
-// Setup a function
-// Push params and locals on the stack and save a call frame on the call stack
-// Sets new pc value for the start of the function
+/* Setup a function */
+/* Push params and locals on the stack and save a call frame on the call stack */
+/* Sets new pc value for the start of the function */
 void setup_call(Module *m, uint32_t fidx) {
 	uint32_t lidx;
 	int p;
     Block  *func = &m->functions[fidx];
     Type   *type = func->type;
 
-    // Push current frame on the call stack
+    /* Push current frame on the call stack */
     push_block(m, func, m->sp - type->param_count);
 
     if (should_trace()) {
@@ -704,18 +703,18 @@ void setup_call(Module *m, uint32_t fidx) {
              func->local_count, type->result_count);
     }
 
-    // Push locals (dropping extras)
+    /* Push locals (dropping extras) */
     m->fp = m->sp - type->param_count + 1;
-    // TODO: validate arguments vs formal params
+    /* TODO: validate arguments vs formal params */
 
-    // Push function locals
+    /* Push function locals */
     for (lidx=0; lidx<func->local_count; lidx++) {
         m->sp += 1;
         m->stack[m->sp].value_type = func->locals[lidx];
-        m->stack[m->sp].value.uint64 = 0; // Initialize whole union to 0
+        m->stack[m->sp].value.uint64 = 0; /* Initialize whole union to 0 */
     }
 
-    // Set program counter to start of function
+    /* Set program counter to start of function */
     m->pc = func->start_addr;
     return;
 }
@@ -731,12 +730,12 @@ result_t interpret(Module *m) {
     uint32_t     arg, val, fidx, tidx, cond, depth, count;
     uint32_t     flags, offset, addr;
     uint8_t     *maddr, *mem_end;
-    //uint32_t    *depths;
+    /* uint32_t    *depths; */
     uint8_t      opcode;
-    uint32_t     a, b, c; // I32 math
-    uint64_t     d, e, f; // I64 math
-    float        g, h, i; // F32 math
-    double       j, k, l; // F64 math
+    uint32_t     a, b, c; /* I32 math */
+    uint64_t     d, e, f; /* I64 math */
+    float        g, h, i; /* F32 math */
+    double       j, k, l; /* F64 math */
     bool         overflow = false;
     StackValue* sval;
 
@@ -745,36 +744,34 @@ result_t interpret(Module *m) {
         cur_pc = m->pc;
         m->pc += 1;
 
-        //if (should_trace()) {
-        //    dump_stacks(m);
-            //fprintf(stderr, "    0x%x <0x%x/%s>\n", cur_pc, opcode, OPERATOR_INFO[opcode]);
-        //}
+        /* if (should_trace()) { */
+        /* dump_stacks(m); */
+            /* fprintf(stderr, "    0x%x <0x%x/%s>\n", cur_pc, opcode, OPERATOR_INFO[opcode]); */
+        /* } */
 
         switch (opcode) {
 
-        //
-        // Control flow operators
-        //
-        case 0x00:  // unreachable
+        /* Control flow operators */
+        case 0x00:  /* unreachable */
             return res_new_err("Unreachable");
-        case 0x01:  // nop
+        case 0x01:  /* nop */
             continue;
-        case 0x02:  // block
-            read_LEB(bytes, &m->pc, 32);  // ignore block type
+        case 0x02:  /* block */
+            read_LEB(bytes, &m->pc, 32);  /* ignore block type */
             if (m->csp >= CALLSTACK_SIZE) {
             return res_new_err("call stack exhausted");
             }
             push_block(m, m->block_lookup[cur_pc], m->sp);
             continue;
-        case 0x03:  // loop
-            read_LEB(bytes, &m->pc, 32);  // ignore block type
+        case 0x03:  /* loop */
+            read_LEB(bytes, &m->pc, 32);  /* ignore block type */
             if (m->csp >= CALLSTACK_SIZE) {
             return res_new_err("call stack exhausted");
             }
             push_block(m, m->block_lookup[cur_pc], m->sp);
             continue;
-        case 0x04:  // if
-            read_LEB(bytes, &m->pc, 32);  // ignore block type
+        case 0x04:  /* if */
+            read_LEB(bytes, &m->pc, 32);  /* ignore block type */
             block = m->block_lookup[cur_pc];
             if (m->csp >= CALLSTACK_SIZE) {
             return res_new_err("call stack exhausted");
@@ -782,34 +779,34 @@ result_t interpret(Module *m) {
             push_block(m, block, m->sp);
 
             cond = stack[m->sp--].value.uint32;
-            if (cond == 0) { // if false (I32)
-                // branch to else block or after end of if
+            if (cond == 0) { /* if false (I32) */
+                /* branch to else block or after end of if */
                 if (block->else_addr == 0) {
-                    // no else block, pop if block and skip end
+                    /* no else block, pop if block and skip end */
                     m->csp -= 1;
                     m->pc = block->br_addr+1;
                 } else {
                     m->pc = block->else_addr;
                 }
             }
-            // if true, keep going
+            /* if true, keep going */
                 wa_trace("      - cond: 0x%x jump to 0x%x, block: %s\n",
                        cond, m->pc, block_repr(block));
             continue;
-        case 0x05:  // else
+        case 0x05:  /* else */
             block = m->callstack[m->csp].block;
             m->pc = block->br_addr;
             
                 wa_trace("      - of %s jump to 0x%x\n", block_repr(block), m->pc);
             
             continue;
-        case 0x0b:  // end
+        case 0x0b:  /* end */
             block = pop_block(m);
             if (block == NULL) {
-                return res_new_err("pop_block"); // an exception (set by pop_block)
+                return res_new_err("pop_block"); /* an exception (set by pop_block) */
             }
             wa_trace("      - of %s\n", block_repr(block));
-            if (block->block_type == 0x00) { // Function
+            if (block->block_type == 0x00) { /* Function */
                 
                     wa_trace("  << fn0x%x(%d) %s = %s\n",
                       block->fidx, block->fidx,
@@ -819,40 +816,40 @@ result_t interpret(Module *m) {
                         "_");
                 
                 if (m->csp == -1) {
-                    // Return to top-level
+                    /* Return to top-level */
                     return res_new_ok();
                 } else {
-                    // Keep going at return address
+                    /* Keep going at return address */
                 }
-            } else if (block->block_type == 0x01) { // init_expr
+            } else if (block->block_type == 0x01) { /* init_expr */
 return res_new_ok();
-            } else {  // Block
-                // End of block/loop/if, keep going
+            } else {  /* Block */
+                /* End of block/loop/if, keep going */
             }
             continue;
-        case 0x0c:  // br
+        case 0x0c:  /* br */
             depth = read_LEB(bytes, &m->pc, 32);
             m->csp -= depth;
-            // set to end for pop_block
+            /* set to end for pop_block */
             m->pc = m->callstack[m->csp].block->br_addr;
-         //   if (TRACE) { wa_debug("      - to: 0x%x\n", &m->pc); }
+         /* if (TRACE) { wa_debug("      - to: 0x%x\n", &m->pc); } */
             wa_trace("      - to: 0x%x\n", m->pc);
             continue;
-        case 0x0d:  // br_if
+        case 0x0d:  /* br_if */
             depth = read_LEB(bytes, &m->pc, 32);
 
             cond = stack[m->sp--].value.uint32;
-            if (cond) { // if true
+            if (cond) { /* if true */
                 m->csp -= depth;
-                // set to end for pop_block
+                /* set to end for pop_block */
                 m->pc = m->callstack[m->csp].block->br_addr;
             }
              wa_trace("      - depth: 0x%x, cond: 0x%x, to: 0x%x\n", depth, cond, m->pc); 
             continue;
-        case 0x0e:  // br_table
+        case 0x0e:  /* br_table */
             count = read_LEB(bytes, &m->pc, 32);
             if (count > BR_TABLE_SIZE) {
-                // TODO: check this prior to runtime
+                /* TODO: check this prior to runtime */
                 result_t err;
                 asprintf(&err.msg, "br_table size %d exceeds max %d\n", count, BR_TABLE_SIZE);
                 return err;
@@ -868,19 +865,19 @@ return res_new_ok();
             }
 
             m->csp -= depth;
-            // set to end for pop_block
+            /* set to end for pop_block */
             m->pc = m->callstack[m->csp].block->br_addr;
             
                 wa_trace("      - count: %d, didx: %d, to: 0x%x\n", count, didx, m->pc);
             
             continue;
-        case 0x0f:  // return
+        case 0x0f:  /* return */
             while (m->csp >= 0 &&
                    m->callstack[m->csp].block->block_type != 0x00) {
                 m->csp--;
             }
-            // Set the program count to the end of the function
-            // The actual pop_block and return is handled by the end opcode.
+            /* Set the program count to the end of the function */
+            /* The actual pop_block and return is handled by the end opcode. */
             m->pc = m->callstack[0].block->end_addr;
             
                 wa_trace("      - to: 0x%x\n", m->pc);
@@ -888,37 +885,35 @@ return res_new_ok();
             continue;
 
 
-        //
-        // Call operators
-        //
-        case 0x10:  // call
+        /* Call operators */
+        case 0x10:  /* call */
             fidx = read_LEB(bytes, &m->pc, 32);
 
             if (fidx < m->import_count) {
-                thunk_out(m, fidx);   // import/thunk call
+                thunk_out(m, fidx);   /* import/thunk call */
             } else {
                 if (m->csp >= CALLSTACK_SIZE) {
                     return res_new_err("call stack exhausted");
                 }
-                setup_call(m, fidx);  // regular function call
+                setup_call(m, fidx);  /* regular function call */
                 
                     wa_trace("      - calling function fidx: %d at: 0x%x\n", fidx, m->pc);
                 
             }
             continue;
-        case 0x11:  // call_indirect
-            tidx = read_LEB(bytes, &m->pc, 32); // TODO: use tidx?
+        case 0x11:  /* call_indirect */
+            tidx = read_LEB(bytes, &m->pc, 32); /* TODO: use tidx? */
             (void)tidx;
-            read_LEB(bytes, &m->pc, 1); // reserved immediate
+            read_LEB(bytes, &m->pc, 1); /* reserved immediate */
             val = stack[m->sp--].value.uint32;
             if (m->options.mangle_table_index) {
-                // val is the table address + the index (not sized for the
-                // pointer size) so get the actual (sized) index
+                /* val is the table address + the index (not sized for the */
+                /* pointer size) so get the actual (sized) index */
                 
                     wa_trace("      - entries: %p, original val: 0x%x, new val: 0x%x\n",
                         m->table.entries, val, m->table.entries - val);
                 
-                //val = val - (uint32_t)((uint64_t)m->table.entries & 0xFFFFFFFF);
+                /* val = val - (uint32_t)((uint64_t)m->table.entries & 0xFFFFFFFF); */
                 val = val - (uint32_t)(uint64_t)m->table.entries;
             }
             if (val >= m->table.maximum) {
@@ -934,7 +929,7 @@ return res_new_ok();
             
 
             if (fidx < m->import_count) {
-                thunk_out(m, fidx);    // import/thunk call
+                thunk_out(m, fidx);    /* import/thunk call */
             } else {
                 Block *func = &m->functions[fidx];
                 Type *ftype = func->type;
@@ -946,9 +941,9 @@ return res_new_ok();
                     return res_new_err("indirect call type mismatch (call type and function type differ)");
                 }
 
-                setup_call(m, fidx);   // regular function call
+                setup_call(m, fidx);   /* regular function call */
 
-                // Validate signatures match
+                /* Validate signatures match */
                 if (ftype->param_count + func->local_count != m->sp - m->fp + 1) {
                     return res_new_err("indirect call type mismatch (param counts differ)");
                 }
@@ -966,25 +961,21 @@ return res_new_ok();
             }
             continue;
 
-        //
-        // Parametric operators
-        //
-        case 0x1a:  // drop
+        /* Parametric operators */
+        case 0x1a:  /* drop */
             m->sp--;
             continue;
-        case 0x1b:  // select
+        case 0x1b:  /* select */
             cond = stack[m->sp--].value.uint32;
             m->sp--;
-            if (!cond) {  // use a instead of b
+            if (!cond) {  /* use a instead of b */
                 stack[m->sp] = stack[m->sp+1];
             }
             continue;
 
 
-        //
-        // Variable access
-        //
-        case 0x20:  // get_local
+        /* Variable access */
+        case 0x20:  /* get_local */
             arg = read_LEB(bytes, &m->pc, 32);
             
                 wa_trace("      - arg: 0x%x, got %s\n",
@@ -992,7 +983,7 @@ return res_new_ok();
             
             stack[++m->sp] = stack[m->fp+arg];
             continue;
-        case 0x21:  // set_local
+        case 0x21:  /* set_local */
             arg = read_LEB(bytes, &m->pc, 32);
             stack[m->fp+arg] = stack[m->sp--];
             
@@ -1000,7 +991,7 @@ return res_new_ok();
                        arg, value_repr(&stack[m->sp]));
             
             continue;
-        case 0x22:  // tee_local
+        case 0x22:  /* tee_local */
             arg = read_LEB(bytes, &m->pc, 32);
             stack[m->fp+arg] = stack[m->sp];
             
@@ -1008,7 +999,7 @@ return res_new_ok();
                        arg, value_repr(&stack[m->sp]));
             
             continue;
-        case 0x23:  // get_global
+        case 0x23:  /* get_global */
             arg = read_LEB(bytes, &m->pc, 32);
             
                 wa_trace("      - arg: 0x%x, got %s\n",
@@ -1016,7 +1007,7 @@ return res_new_ok();
             
             stack[++m->sp] = m->globals[arg];
             continue;
-        case 0x24:  // set_global
+        case 0x24:  /* set_global */
             arg = read_LEB(bytes, &m->pc, 32);
             m->globals[arg] = stack[m->sp--];
             
@@ -1025,21 +1016,19 @@ return res_new_ok();
             
             continue;
 
-        //
-        // Memory-related operators
-        //
-        case 0x3f:  // current_memory
-            read_LEB(bytes, &m->pc, 32); // ignore reserved
+        /* Memory-related operators */
+        case 0x3f:  /* current_memory */
+            read_LEB(bytes, &m->pc, 32); /* ignore reserved */
             stack[++m->sp].value_type = I32;
             stack[m->sp].value.uint32 = m->memory.pages;
             continue;
-        case 0x40:  // grow_memory
-            read_LEB(bytes, &m->pc, 32); // ignore reserved
+        case 0x40:  /* grow_memory */
+            read_LEB(bytes, &m->pc, 32); /* ignore reserved */
             prev_pages = m->memory.pages;
             delta = stack[m->sp].value.uint32;
             stack[m->sp].value.uint32 = prev_pages;
             if (delta == 0) {
-                continue; // No change
+                continue; /* No change */
             } else if (delta+prev_pages > m->memory.maximum) {
                 stack[m->sp].value.uint32 = -1;
                 continue;
@@ -1052,7 +1041,7 @@ return res_new_ok();
                                         "grow_memory: Module->memory.bytes");
             continue;
 
-        // Memory load operators
+        /* Memory load operators */
 	case 0x28:
 	case 0x29:
 	case 0x2a:
@@ -1091,46 +1080,46 @@ return res_new_ok();
                     return res_new_err("out of bounds memory access");
                 }
             }
-            stack[++m->sp].value.uint64 = 0; // initialize to 0
+            stack[++m->sp].value.uint64 = 0; /* initialize to 0 */
             switch (opcode) {
             case 0x28: memcpy(&stack[m->sp].value, maddr, 4);
-                       stack[m->sp].value_type = I32; break; // i32.load
+                       stack[m->sp].value_type = I32; break; /* i32.load */
             case 0x29: memcpy(&stack[m->sp].value, maddr, 8);
-                       stack[m->sp].value_type = I64; break; // i64.load
+                       stack[m->sp].value_type = I64; break; /* i64.load */
             case 0x2a: memcpy(&stack[m->sp].value, maddr, 4);
-                       stack[m->sp].value_type = F32; break; // f32.load
+                       stack[m->sp].value_type = F32; break; /* f32.load */
             case 0x2b: memcpy(&stack[m->sp].value, maddr, 8);
-                       stack[m->sp].value_type = F64; break; // f64.load
+                       stack[m->sp].value_type = F64; break; /* f64.load */
             case 0x2c: memcpy(&stack[m->sp].value, maddr, 1);
                        sext_8_32(&stack[m->sp].value.uint32);
                        stack[m->sp].value_type = I32;
-                       break; // i32.load8_s
+                       break; /* i32.load8_s */
             case 0x2d: memcpy(&stack[m->sp].value, maddr, 1);
-                       stack[m->sp].value_type = I32; break; // i32.load8_u
+                       stack[m->sp].value_type = I32; break; /* i32.load8_u */
             case 0x2e: memcpy(&stack[m->sp].value, maddr, 2);
                        sext_16_32(&stack[m->sp].value.uint32);
-                       stack[m->sp].value_type = I32; break; // i32.load16_s
+                       stack[m->sp].value_type = I32; break; /* i32.load16_s */
             case 0x2f: memcpy(&stack[m->sp].value, maddr, 2);
-                       stack[m->sp].value_type = I32; break; // i32.load16_u
+                       stack[m->sp].value_type = I32; break; /* i32.load16_u */
             case 0x30: memcpy(&stack[m->sp].value, maddr, 1);
                        sext_8_64(&stack[m->sp].value.uint64);
-                       stack[m->sp].value_type = I64; break; // i64.load8_s
+                       stack[m->sp].value_type = I64; break; /* i64.load8_s */
             case 0x31: memcpy(&stack[m->sp].value, maddr, 1);
-                       stack[m->sp].value_type = I64; break; // i64.load8_u
+                       stack[m->sp].value_type = I64; break; /* i64.load8_u */
             case 0x32: memcpy(&stack[m->sp].value, maddr, 2);
                        sext_16_64(&stack[m->sp].value.uint64);
-                       stack[m->sp].value_type = I64; break; // i64.load16_s
+                       stack[m->sp].value_type = I64; break; /* i64.load16_s */
             case 0x33: memcpy(&stack[m->sp].value, maddr, 2);
-                       stack[m->sp].value_type = I64; break; // i64.load16_u
+                       stack[m->sp].value_type = I64; break; /* i64.load16_u */
             case 0x34: memcpy(&stack[m->sp].value, maddr, 4);
                        sext_32_64(&stack[m->sp].value.uint64);
-                       stack[m->sp].value_type = I64; break; // i64.load32_s
+                       stack[m->sp].value_type = I64; break; /* i64.load32_s */
             case 0x35: memcpy(&stack[m->sp].value, maddr, 4);
-                       stack[m->sp].value_type = I64; break; // i64.load32_u
+                       stack[m->sp].value_type = I64; break; /* i64.load32_u */
             }
             continue;
 
-        // Memory store operators
+        /* Memory store operators */
             case 0x36:
 case 0x37:
 case 0x38:
@@ -1166,56 +1155,52 @@ case 0x3e:
                 }
             }
             switch (opcode) {
-            case 0x36: memcpy(maddr, &sval->value.uint32, 4); break; // i32.store
-            case 0x37: memcpy(maddr, &sval->value.uint64, 8); break; // i64.store
-            case 0x38: memcpy(maddr, &sval->value.f32, 4); break;    // f32.store
-            case 0x39: memcpy(maddr, &sval->value.f64, 8); break;    // f64.store
-            case 0x3a: memcpy(maddr, &sval->value.uint32, 1); break; // i32.store8
-            case 0x3b: memcpy(maddr, &sval->value.uint32, 2); break; // i32.store16
-            case 0x3c: memcpy(maddr, &sval->value.uint64, 1); break; // i64.store8
-            case 0x3d: memcpy(maddr, &sval->value.uint64, 2); break; // i64.store16
-            case 0x3e: memcpy(maddr, &sval->value.uint64, 4); break; // i64.store32
+            case 0x36: memcpy(maddr, &sval->value.uint32, 4); break; /* i32.store */
+            case 0x37: memcpy(maddr, &sval->value.uint64, 8); break; /* i64.store */
+            case 0x38: memcpy(maddr, &sval->value.f32, 4); break;    /* f32.store */
+            case 0x39: memcpy(maddr, &sval->value.f64, 8); break;    /* f64.store */
+            case 0x3a: memcpy(maddr, &sval->value.uint32, 1); break; /* i32.store8 */
+            case 0x3b: memcpy(maddr, &sval->value.uint32, 2); break; /* i32.store16 */
+            case 0x3c: memcpy(maddr, &sval->value.uint64, 1); break; /* i64.store8 */
+            case 0x3d: memcpy(maddr, &sval->value.uint64, 2); break; /* i64.store16 */
+            case 0x3e: memcpy(maddr, &sval->value.uint64, 4); break; /* i64.store32 */
             }
             continue;
 
-        //
-        // Constants
-        //
-        case 0x41:  // i32.const
+        /* Constants */
+        case 0x41:  /* i32.const */
             stack[++m->sp].value_type = I32;
             stack[m->sp].value.uint32 = read_LEB_signed(bytes, &m->pc, 32);
             continue;
-        case 0x42:  // i64.const
+        case 0x42:  /* i64.const */
             stack[++m->sp].value_type = I64;
             stack[m->sp].value.int64 = read_LEB_signed(bytes, &m->pc, 64);
             continue;
-        case 0x43:  // f32.const
+        case 0x43:  /* f32.const */
             stack[++m->sp].value_type = F32;
             memcpy(&stack[m->sp].value.uint32, bytes+m->pc, 4);
             m->pc += 4;
-            //stack[m->sp].value.uint32 = read_LEB_signed(bytes, pm->c, 32);
+            /* stack[m->sp].value.uint32 = read_LEB_signed(bytes, pm->c, 32); */
             continue;
-        case 0x44:  // f64.const
+        case 0x44:  /* f64.const */
             stack[++m->sp].value_type = F64;
             memcpy(&stack[m->sp].value.uint64, bytes+m->pc, 8);
             m->pc += 8;
-            //stack[m->sp].value.uint64 = read_LEB_signed(bytes, m->pc, 64);
+            /* stack[m->sp].value.uint64 = read_LEB_signed(bytes, m->pc, 64); */
             continue;
 
-        //
-        // Comparison operators
-        //
+        /* Comparison operators */
 
-        // unary
-        case 0x45:  // i32.eqz
+        /* unary */
+        case 0x45:  /* i32.eqz */
             stack[m->sp].value.uint32 = stack[m->sp].value.uint32 == 0;
             continue;
-        case 0x50:  // i64.eqz
+        case 0x50:  /* i64.eqz */
             stack[m->sp].value_type = I32;
             stack[m->sp].value.uint32 = stack[m->sp].value.uint64 == 0;
             continue;
 
-        // i32 binary
+        /* i32 binary */
 	case 0x46:
 	case 0x47:
 	case 0x48:
@@ -1230,16 +1215,16 @@ case 0x3e:
             b = stack[m->sp].value.uint32;
             m->sp -= 1;
             switch (opcode) {
-            case 0x46: c = a == b; break;  // i32.eq
-            case 0x47: c = a != b; break;  // i32.ne
-            case 0x48: c = (int32_t)a <  (int32_t)b; break;  // i32.lt_s
-            case 0x49: c = a <  b; break;  // i32.lt_u
-            case 0x4a: c = (int32_t)a >  (int32_t)b; break;  // i32.gt_s
-            case 0x4b: c = a >  b; break;  // i32.gt_u
-            case 0x4c: c = (int32_t)a <= (int32_t)b; break;  // i32.le_s
-            case 0x4d: c = a <= b; break;  // i32.le_u
-            case 0x4e: c = (int32_t)a >= (int32_t)b; break;  // i32.ge_s
-            case 0x4f: c = a >= b; break;  // i32.ge_u
+            case 0x46: c = a == b; break;  /* i32.eq */
+            case 0x47: c = a != b; break;  /* i32.ne */
+            case 0x48: c = (int32_t)a <  (int32_t)b; break;  /* i32.lt_s */
+            case 0x49: c = a <  b; break;  /* i32.lt_u */
+            case 0x4a: c = (int32_t)a >  (int32_t)b; break;  /* i32.gt_s */
+            case 0x4b: c = a >  b; break;  /* i32.gt_u */
+            case 0x4c: c = (int32_t)a <= (int32_t)b; break;  /* i32.le_s */
+            case 0x4d: c = a <= b; break;  /* i32.le_u */
+            case 0x4e: c = (int32_t)a >= (int32_t)b; break;  /* i32.ge_s */
+            case 0x4f: c = a >= b; break;  /* i32.ge_u */
             }
             stack[m->sp].value_type = I32;
             stack[m->sp].value.uint32 = c;
@@ -1258,16 +1243,16 @@ case 0x3e:
             e = stack[m->sp].value.uint64;
             m->sp -= 1;
             switch (opcode) {
-            case 0x51: c = d == e; break;  // i64.eq
-            case 0x52: c = d != e; break;  // i64.ne
-            case 0x53: c = (int64_t)d <  (int64_t)e; break;  // i64.lt_s
-            case 0x54: c = d <  e; break;  // i64.lt_u
-            case 0x55: c = (int64_t)d >  (int64_t)e; break;  // i64.gt_s
-            case 0x56: c = d >  e; break;  // i64.gt_u
-            case 0x57: c = (int64_t)d <= (int64_t)e; break;  // i64.le_s
-            case 0x58: c = d <= e; break;  // i64.le_u
-            case 0x59: c = (int64_t)d >= (int64_t)e; break;  // i64.ge_s
-            case 0x5a: c = d >= e; break;  // i64.ge_u
+            case 0x51: c = d == e; break;  /* i64.eq */
+            case 0x52: c = d != e; break;  /* i64.ne */
+            case 0x53: c = (int64_t)d <  (int64_t)e; break;  /* i64.lt_s */
+            case 0x54: c = d <  e; break;  /* i64.lt_u */
+            case 0x55: c = (int64_t)d >  (int64_t)e; break;  /* i64.gt_s */
+            case 0x56: c = d >  e; break;  /* i64.gt_u */
+            case 0x57: c = (int64_t)d <= (int64_t)e; break;  /* i64.le_s */
+            case 0x58: c = d <= e; break;  /* i64.le_u */
+            case 0x59: c = (int64_t)d >= (int64_t)e; break;  /* i64.ge_s */
+            case 0x5a: c = d >= e; break;  /* i64.ge_u */
             }
             stack[m->sp].value_type = I32;
             stack[m->sp].value.uint32 = c;
@@ -1282,12 +1267,12 @@ case 0x3e:
             h = stack[m->sp].value.f32;
             m->sp -= 1;
             switch (opcode) {
-            case 0x5b: c = g == h; break;  // f32.eq
-            case 0x5c: c = g != h; break;  // f32.ne
-            case 0x5d: c = g <  h; break;  // f32.lt
-            case 0x5e: c = g >  h; break;  // f32.gt
-            case 0x5f: c = g <= h; break;  // f32.le
-            case 0x60: c = g >= h; break;  // f32.ge
+            case 0x5b: c = g == h; break;  /* f32.eq */
+            case 0x5c: c = g != h; break;  /* f32.ne */
+            case 0x5d: c = g <  h; break;  /* f32.lt */
+            case 0x5e: c = g >  h; break;  /* f32.gt */
+            case 0x5f: c = g <= h; break;  /* f32.le */
+            case 0x60: c = g >= h; break;  /* f32.ge */
             }
             stack[m->sp].value_type = I32;
             stack[m->sp].value.uint32 = c;
@@ -1302,80 +1287,78 @@ case 0x3e:
             k = stack[m->sp].value.f64;
             m->sp -= 1;
             switch (opcode) {
-            case 0x61: c = j == k; break;  // f64.eq
-            case 0x62: c = j != k; break;  // f64.ne
-            case 0x63: c = j <  k; break;  // f64.lt
-            case 0x64: c = j >  k; break;  // f64.gt
-            case 0x65: c = j <= k; break;  // f64.le
-            case 0x66: c = j >= k; break;  // f64.ge
+            case 0x61: c = j == k; break;  /* f64.eq */
+            case 0x62: c = j != k; break;  /* f64.ne */
+            case 0x63: c = j <  k; break;  /* f64.lt */
+            case 0x64: c = j >  k; break;  /* f64.gt */
+            case 0x65: c = j <= k; break;  /* f64.le */
+            case 0x66: c = j >= k; break;  /* f64.ge */
             }
             stack[m->sp].value_type = I32;
             stack[m->sp].value.uint32 = c;
             continue;
 
-        //
-        // Numeric operators
-        //
+        /* Numeric operators */
 
-        // unary i32
+        /* unary i32 */
 	case 0x67:
 	case 0x68:
 	case 0x69:
             a = stack[m->sp].value.uint32;
             switch (opcode) {
-            case 0x67: c = a==0 ? 32 : clz(a); break; // i32.clz
-            case 0x68: c = a==0 ? 32 : ctz(a); break; // i32.ctz
-            case 0x69: c = popcnt(a); break;        // i32.popcnt
+            case 0x67: c = a==0 ? 32 : clz(a); break; /* i32.clz */
+            case 0x68: c = a==0 ? 32 : ctz(a); break; /* i32.ctz */
+            case 0x69: c = popcnt(a); break;        /* i32.popcnt */
             }
             stack[m->sp].value.uint32 = c;
             continue;
 
-        // unary i64
+        /* unary i64 */
 	case 0x79:
 	case 0x7a:
 	case 0x7b:
             d = stack[m->sp].value.uint64;
             switch (opcode) {
-            case 0x79: f = d==0 ? 64 : clzll(d); break; // i64.clz
-            case 0x7a: f = d==0 ? 64 : ctzll(d); break; // i64.ctz
-            case 0x7b: f = popcntll(d); break;        // i64.popcnt
+            case 0x79: f = d==0 ? 64 : clzll(d); break; /* i64.clz */
+            case 0x7a: f = d==0 ? 64 : ctzll(d); break; /* i64.ctz */
+            case 0x7b: f = popcntll(d); break;        /* i64.popcnt */
             }
             stack[m->sp].value.uint64 = f;
             continue;
 
-        // unary f32
+        /* unary f32 */
         case 0x8b: stack[m->sp].value.f32
-                   = fabs(stack[m->sp].value.f32); break;  // f32.abs
+                   = fabs(stack[m->sp].value.f32); break;  /* f32.abs */
         case 0x8c: stack[m->sp].value.f32
-                   = -stack[m->sp].value.f32; break;       // f32.neg
+                   = -stack[m->sp].value.f32; break;       /* f32.neg */
         case 0x8d: stack[m->sp].value.f32
-                   = ceil(stack[m->sp].value.f32); break;  // f32.ceil
+                   = ceil(stack[m->sp].value.f32); break;  /* f32.ceil */
         case 0x8e: stack[m->sp].value.f32
-                   = floor(stack[m->sp].value.f32); break; // f32.floor
+                   = floor(stack[m->sp].value.f32); break; /* f32.floor */
         case 0x8f: stack[m->sp].value.f32
-                   = trunc(stack[m->sp].value.f32); break; // f32.trunc
+                   = trunc(stack[m->sp].value.f32); break; /* f32.trunc */
         case 0x90: stack[m->sp].value.f32
-                   = wa_rint(stack[m->sp].value.f32); break; // f32.nearest
+                   = wa_rint(stack[m->sp].value.f32); break; /* f32.nearest */
         case 0x91: stack[m->sp].value.f32
-                   = sqrt(stack[m->sp].value.f32); break;  // f32.sqrt
+                   = sqrt(stack[m->sp].value.f32); break;  /* f32.sqrt */
 
-        // unary f64
+        /* unary f64 */
         case 0x99: stack[m->sp].value.f64
-                   = fabs(stack[m->sp].value.f64); break;  // f64.abs
+                   = fabs(stack[m->sp].value.f64); break;  /* f64.abs */
         case 0x9a: stack[m->sp].value.f64
-                   = -stack[m->sp].value.f64; break;       // f64.neg
+                   = -stack[m->sp].value.f64; break;       /* f64.neg */
         case 0x9b: stack[m->sp].value.f64
-                   = ceil(stack[m->sp].value.f64); break;  // f64.ceil
+                   = ceil(stack[m->sp].value.f64); break;  /* f64.ceil */
         case 0x9c: stack[m->sp].value.f64
-                   = floor(stack[m->sp].value.f64); break; // f64.floor
+                   = floor(stack[m->sp].value.f64); break; /* f64.floor */
         case 0x9d: stack[m->sp].value.f64
-                   = trunc(stack[m->sp].value.f64); break; // f64.trunc
+                   = trunc(stack[m->sp].value.f64); break; /* f64.trunc */
         case 0x9e: stack[m->sp].value.f64
-                   = wa_rint(stack[m->sp].value.f64); break; // f64.nearest
+                   = wa_rint(stack[m->sp].value.f64); break; /* f64.nearest */
         case 0x9f: stack[m->sp].value.f64
-                   = sqrt(stack[m->sp].value.f64); break;  // f64.sqrt
+                   = sqrt(stack[m->sp].value.f64); break;  /* f64.sqrt */
 
-        // i32 binary
+        /* i32 binary */
 	case 0x6a:
 	case 0x6b:
 	case 0x6c:
@@ -1398,39 +1381,39 @@ case 0x3e:
                 return res_new_err("integer divide by zero");
             }
             switch (opcode) {
-            //case 0x6a: o = __builtin_add_overflow(a, b, &c); break;  // i32.add
-            //case 0x6b: o = __builtin_sub_overflow(a, b, &c); break;  // i32.sub
-            case 0x6a: c = a + b; break;  // i32.add
-            case 0x6b: c = a - b; break;  // i32.sub
-            case 0x6c: c = a * b; break;  // i32.mul
+            /* case 0x6a: o = __builtin_add_overflow(a, b, &c); break;  // i32.add */
+            /* case 0x6b: o = __builtin_sub_overflow(a, b, &c); break;  // i32.sub */
+            case 0x6a: c = a + b; break;  /* i32.add */
+            case 0x6b: c = a - b; break;  /* i32.sub */
+            case 0x6c: c = a * b; break;  /* i32.mul */
             case 0x6d: if (a == 0x80000000 && b == -1) {
                 return res_new_err("integer divide by zero");
                        }
-                       c = (int32_t)a / (int32_t)b; break;  // i32.div_s
-            case 0x6e: c = a / b; break;  // i32.div_u
+                       c = (int32_t)a / (int32_t)b; break;  /* i32.div_s */
+            case 0x6e: c = a / b; break;  /* i32.div_u */
             case 0x6f: if (a == 0x80000000 && b == -1) {
                            c = 0;
                        } else {
                            c = (int32_t)a % (int32_t)b;
-                       }; break;  // i32.rem_s
-            case 0x70: c = a % b; break;  // i32.rem_u
-            case 0x71: c = a & b; break;  // i32.and
-            case 0x72: c = a | b; break;  // i32.or
-            case 0x73: c = a ^ b; break;  // i32.xor
-            case 0x74: c = a << b; break; // i32.shl
-            case 0x75: c = (int32_t)a >> b; break; // i32.shr_s
-            case 0x76: c = a >> b; break; // i32.shr_u
-            case 0x77: c = rotl32(a, b); break; // i32.rotl
-            case 0x78: c = rotr32(a, b); break; // i32.rotr
+                       }; break;  /* i32.rem_s */
+            case 0x70: c = a % b; break;  /* i32.rem_u */
+            case 0x71: c = a & b; break;  /* i32.and */
+            case 0x72: c = a | b; break;  /* i32.or */
+            case 0x73: c = a ^ b; break;  /* i32.xor */
+            case 0x74: c = a << b; break; /* i32.shl */
+            case 0x75: c = (int32_t)a >> b; break; /* i32.shr_s */
+            case 0x76: c = a >> b; break; /* i32.shr_u */
+            case 0x77: c = rotl32(a, b); break; /* i32.rotl */
+            case 0x78: c = rotr32(a, b); break; /* i32.rotr */
             }
-            //if (o == 1) {
-            //    sprintf(exception, "integer overflow");
-            //    return false;
-            //}
+            /* if (o == 1) { */
+            /* sprintf(exception, "integer overflow"); */
+            /* return false; */
+            /* } */
             stack[m->sp].value.uint32 = c;
             continue;
 
-        // i64 binary
+        /* i64 binary */
 case 0x7c:
 case 0x7d:
 case 0x7e:
@@ -1453,72 +1436,72 @@ case 0x8a:
                 return res_new_err("integer divide by zero");
             }
             switch (opcode) {
-            case 0x7c: f = d + e; break;  // i64.add
-            case 0x7d: f = d - e; break;  // i64.sub
-            case 0x7e: f = d * e; break;  // i64.mul
+            case 0x7c: f = d + e; break;  /* i64.add */
+            case 0x7d: f = d - e; break;  /* i64.sub */
+            case 0x7e: f = d * e; break;  /* i64.mul */
             case 0x7f: if (d == 0x8000000000000000 && e == -1) {
                 return res_new_err("integer divide by zero");
                        }
-                       f = (int64_t)d / (int64_t)e; break;  // i64.div_s
-            case 0x80: f = d / e; break;  // i64.div_u
+                       f = (int64_t)d / (int64_t)e; break;  /* i64.div_s */
+            case 0x80: f = d / e; break;  /* i64.div_u */
             case 0x81: if (d == 0x8000000000000000 && e == -1) {
                            f = 0;
                        } else {
                            f = (int64_t)d % (int64_t)e;
                        }
-                       break;  // i64.rem_s
-            case 0x82: f = d % e; break;  // i64.rem_u
-            case 0x83: f = d & e; break;  // i64.and
-            case 0x84: f = d | e; break;  // i64.or
-            case 0x85: f = d ^ e; break;  // i64.xor
-            case 0x86: f = d << e; break; // i64.shl
-            case 0x87: f = ((int64_t)d) >> e; break; // i64.shr_s
-            case 0x88: f = d >> e; break; // i64.shr_u
-            case 0x89: f = rotl64(d, e); break; // i64.rotl
-            case 0x8a: f = rotr64(d, e); break; // i64.rotr
+                       break;  /* i64.rem_s */
+            case 0x82: f = d % e; break;  /* i64.rem_u */
+            case 0x83: f = d & e; break;  /* i64.and */
+            case 0x84: f = d | e; break;  /* i64.or */
+            case 0x85: f = d ^ e; break;  /* i64.xor */
+            case 0x86: f = d << e; break; /* i64.shl */
+            case 0x87: f = ((int64_t)d) >> e; break; /* i64.shr_s */
+            case 0x88: f = d >> e; break; /* i64.shr_u */
+            case 0x89: f = rotl64(d, e); break; /* i64.rotl */
+            case 0x8a: f = rotr64(d, e); break; /* i64.rotr */
             }
             stack[m->sp].value.uint64 = f;
             continue;
 
-        // f32 binary
+        /* f32 binary */
             case 0x92:case 0x93:case 0x94:case 0x95:case 0x96:case 0x97:case 0x98:
                 
             g = stack[m->sp-1].value.f32;
             h = stack[m->sp].value.f32;
             m->sp -= 1;
             switch (opcode) {
-            case 0x92: i = g + h; break;  // f32.add
-            case 0x93: i = g - h; break;  // f32.sub
-            case 0x94: i = g * h; break;  // f32.mul
-            case 0x95: i = g / h; break;  // f32.div
-            case 0x96: i = wa_fmin(g, h); break;  // f32.min
-            case 0x97: i = wa_fmax(g, h); break;  // f32.max
-            case 0x98: i = wa_signbit(h) ? -fabs(g) : fabs(g); break;  // f32.copysign
+            case 0x92: i = g + h; break;  /* f32.add */
+            case 0x93: i = g - h; break;  /* f32.sub */
+            case 0x94: i = g * h; break;  /* f32.mul */
+            case 0x95: i = g / h; break;  /* f32.div */
+            case 0x96: i = wa_fmin(g, h); break;  /* f32.min */
+            case 0x97: i = wa_fmax(g, h); break;  /* f32.max */
+            case 0x98: i = wa_signbit(h) ? -fabs(g) : fabs(g); break;  /* f32.copysign */
             }
             stack[m->sp].value.f32 = i;
             continue;
 
-        // f64 binary
+        /* f64 binary */
             case 0xa0:case 0xa1:case 0xa2:case 0xa3:case 0xa4:case 0xa5:case 0xa6:
             j = stack[m->sp-1].value.f64;
             k = stack[m->sp].value.f64;
             m->sp -= 1;
             switch (opcode) {
-            case 0xa0: l = j + k; break;  // f64.add
-            case 0xa1: l = j - k; break;  // f64.sub
-            case 0xa2: l = j * k; break;  // f64.mul
-            case 0xa3: l = j / k; break;  // f64.div
-            case 0xa4: l = wa_fmin(j, k); break;  // f64.min
-            case 0xa5: l = wa_fmax(j, k); break;  // f64.max
-            case 0xa6: l = wa_signbit(k) ? -fabs(j) : fabs(j); break;  // f64.copysign
+            case 0xa0: l = j + k; break;  /* f64.add */
+            case 0xa1: l = j - k; break;  /* f64.sub */
+            case 0xa2: l = j * k; break;  /* f64.mul */
+            case 0xa3: l = j / k; break;  /* f64.div */
+            case 0xa4: l = wa_fmin(j, k); break;  /* f64.min */
+            case 0xa5: l = wa_fmax(j, k); break;  /* f64.max */
+            case 0xa6: l = wa_signbit(k) ? -fabs(j) : fabs(j); break;  /* f64.copysign */
             }
             stack[m->sp].value.f64 = l;
             continue;
 
-        // conversion operations
-        //case 0xa7 ... 0xbb:
+        /* conversion operations */
+        /* case 0xa7 ... 0xbb: */
         case 0xa7: stack[m->sp].value.uint64 &= 0x00000000ffffffff;
-                   stack[m->sp].value_type = I32; break;  // i32.wrap/i64
+                   stack[m->sp].value_type = I32; break;  /* i32.wrap/i64 */
         case 0xa8: if (isnan(stack[m->sp].value.f32)) {
             return res_new_err("invalid conversion to integer");
                    } else if (stack[m->sp].value.f32 >= (float)INT32_MAX ||
@@ -1526,7 +1509,7 @@ case 0x8a:
             return res_new_err("integer overflow");
                    }
                    stack[m->sp].value.int32 = stack[m->sp].value.f32;
-                   stack[m->sp].value_type = I32; break;  // i32.trunc_s/f32
+                   stack[m->sp].value_type = I32; break;  /* i32.trunc_s/f32 */
         case 0xa9: if (isnan(stack[m->sp].value.f32)) {
             return res_new_err("invalid conversion to integer");
                    } else if (stack[m->sp].value.f32 >= (float)UINT32_MAX ||
@@ -1534,7 +1517,7 @@ case 0x8a:
             return res_new_err("integer overflow");
                    }
                    stack[m->sp].value.uint32 = stack[m->sp].value.f32;
-                   stack[m->sp].value_type = I32; break;  // i32.trunc_u/f32
+                   stack[m->sp].value_type = I32; break;  /* i32.trunc_u/f32 */
         case 0xaa: if (isnan(stack[m->sp].value.f64)) {
             return res_new_err("invalid conversion to integer");
                    } else if (stack[m->sp].value.f64 > (double)INT32_MAX ||
@@ -1542,7 +1525,7 @@ case 0x8a:
             return res_new_err("integer overflow");
                    }
                    stack[m->sp].value.int32 = stack[m->sp].value.f64;
-                   stack[m->sp].value_type = I32; break;  // i32.trunc_s/f64
+                   stack[m->sp].value_type = I32; break;  /* i32.trunc_s/f64 */
         case 0xab: if (isnan(stack[m->sp].value.f64)) {
             return res_new_err("invalid conversion to integer");
                    } else if (stack[m->sp].value.f64 > UINT32_MAX ||
@@ -1550,20 +1533,18 @@ case 0x8a:
             return res_new_err("integer overflow");
                    }
                    stack[m->sp].value.uint32 = stack[m->sp].value.f64;
-                   stack[m->sp].value_type = I32; break;  // i32.trunc_u/f64
-        case 0xac:{ // i64.extend_s/i32
+                   stack[m->sp].value_type = I32; break;  /* i32.trunc_u/f64 */
+        case 0xac:{ /* i64.extend_s/i32 */
 		int og = stack[m->sp].value.uint32;
 		stack[m->sp].value.uint64 = stack[m->sp].value.uint32;
                 sext_32_64(&stack[m->sp].value.uint64);
                 stack[m->sp].value_type = I64;
-		fprintf(stderr, "ext %x -> %x\n", og, stack[m->sp].value.uint64);
 		break;
 		}
 	case 0xad:{  
-		fprintf(stderr, "ext %x\n", stack[m->sp].value.uint64);
 		stack[m->sp].value.uint64 = stack[m->sp].value.uint32;
                 stack[m->sp].value_type = I64;
-		break;  // i64.extend_u/i32
+		break;  /* i64.extend_u/i32 */
    	}
         case 0xae: if (isnan(stack[m->sp].value.f32)) {
             return res_new_err("invalid conversion to integer");
@@ -1572,7 +1553,7 @@ case 0x8a:
             return res_new_err("integer overflow");
                    }
                    stack[m->sp].value.int64 = stack[m->sp].value.f32;
-                   stack[m->sp].value_type = I64; break;  // i64.trunc_s/f32
+                   stack[m->sp].value_type = I64; break;  /* i64.trunc_s/f32 */
         case 0xaf: if (isnan(stack[m->sp].value.f32)) {
             return res_new_err("invalid conversion to integer");
                    } else if (stack[m->sp].value.f32 >= (float)UINT64_MAX ||
@@ -1580,7 +1561,7 @@ case 0x8a:
             return res_new_err("integer overflow");
                    }
                    stack[m->sp].value.uint64 = stack[m->sp].value.f32;
-                   stack[m->sp].value_type = I64; break;  // i64.trunc_u/f32
+                   stack[m->sp].value_type = I64; break;  /* i64.trunc_u/f32 */
         case 0xb0: if (isnan(stack[m->sp].value.f64)) {
             return res_new_err("invalid conversion to integer");
                    } else if (stack[m->sp].value.f64 >= (double)INT64_MAX ||
@@ -1588,7 +1569,7 @@ case 0x8a:
             return res_new_err("integer overflow");
                    }
                    stack[m->sp].value.int64 = stack[m->sp].value.f64;
-                   stack[m->sp].value_type = I64; break;  // i64.trunc_s/f64
+                   stack[m->sp].value_type = I64; break;  /* i64.trunc_s/f64 */
         case 0xb1: if (isnan(stack[m->sp].value.f64)) {
             return res_new_err("invalid conversion to integer");
                    } else if (stack[m->sp].value.f64 >= (double)UINT64_MAX ||
@@ -1596,34 +1577,34 @@ case 0x8a:
             return res_new_err("integer overflow");
                    }
                    stack[m->sp].value.uint64 = stack[m->sp].value.f64;
-                   stack[m->sp].value_type = I64; break;  // i64.trunc_u/f64
+                   stack[m->sp].value_type = I64; break;  /* i64.trunc_u/f64 */
         case 0xb2: stack[m->sp].value.f32 = stack[m->sp].value.int32;
-                   stack[m->sp].value_type = F32; break;  // f32.convert_s/i32
+                   stack[m->sp].value_type = F32; break;  /* f32.convert_s/i32 */
         case 0xb3: stack[m->sp].value.f32 = stack[m->sp].value.uint32;
-                   stack[m->sp].value_type = F32; break;  // f32.convert_u/i32
+                   stack[m->sp].value_type = F32; break;  /* f32.convert_u/i32 */
         case 0xb4: stack[m->sp].value.f32 = stack[m->sp].value.int64;
-                   stack[m->sp].value_type = F32; break;  // f32.convert_s/i64
+                   stack[m->sp].value_type = F32; break;  /* f32.convert_s/i64 */
         case 0xb5: stack[m->sp].value.f32 = stack[m->sp].value.uint64;
-                   stack[m->sp].value_type = F32; break;  // f32.convert_u/i64
+                   stack[m->sp].value_type = F32; break;  /* f32.convert_u/i64 */
         case 0xb6: stack[m->sp].value.f32 = stack[m->sp].value.f64;
-                   stack[m->sp].value_type = F32; break;  // f32.demote/f64
+                   stack[m->sp].value_type = F32; break;  /* f32.demote/f64 */
         case 0xb7: stack[m->sp].value.f64 = stack[m->sp].value.int32;
-                   stack[m->sp].value_type = F64; break;  // f64.convert_s/i32
+                   stack[m->sp].value_type = F64; break;  /* f64.convert_s/i32 */
         case 0xb8: stack[m->sp].value.f64 = stack[m->sp].value.uint32;
-                   stack[m->sp].value_type = F64; break;  // f64.convert_u/i32
+                   stack[m->sp].value_type = F64; break;  /* f64.convert_u/i32 */
         case 0xb9: stack[m->sp].value.f64 = stack[m->sp].value.int64;
-                   stack[m->sp].value_type = F64; break;  // f64.convert_s/i64
+                   stack[m->sp].value_type = F64; break;  /* f64.convert_s/i64 */
         case 0xba: stack[m->sp].value.f64 = stack[m->sp].value.uint64;
-                   stack[m->sp].value_type = F64; break;  // f64.convert_u/i64
+                   stack[m->sp].value_type = F64; break;  /* f64.convert_u/i64 */
         case 0xbb: stack[m->sp].value.f64 = stack[m->sp].value.f32;
-                   stack[m->sp].value_type = F64; break;  // f64.promote/f32
+                   stack[m->sp].value_type = F64; break;  /* f64.promote/f32 */
 
-        // reinterpretations
-        case 0xbc: stack[m->sp].value_type = I32; break;  // i32.reinterpret/f32
-        case 0xbd: stack[m->sp].value_type = I64; break;  // i64.reinterpret/f64
-        case 0xbe: //memmove(&stack[m->sp].value.f32, &stack[m->sp].value.uint32, 4);
-                   stack[m->sp].value_type = F32; break;  // f32.reinterpret/i32
-        case 0xbf: stack[m->sp].value_type = F64; break;  // f64.reinterpret/i64
+        /* reinterpretations */
+        case 0xbc: stack[m->sp].value_type = I32; break;  /* i32.reinterpret/f32 */
+        case 0xbd: stack[m->sp].value_type = I64; break;  /* i64.reinterpret/f64 */
+        case 0xbe: /* memmove(&stack[m->sp].value.f32, &stack[m->sp].value.uint32, 4); */
+                   stack[m->sp].value_type = F32; break;  /* f32.reinterpret/i32 */
+        case 0xbf: stack[m->sp].value_type = F64; break;  /* f64.reinterpret/i64 */
 
 	/* Sign extend ext */
 	case 0xc0:
@@ -1654,11 +1635,11 @@ case 0x8a:
                 return err;}
         }
     }
-    return res_new_err("Unreachable"); // We shouldn't reach here
+    return res_new_err("Unreachable"); /* We shouldn't reach here */
 }
 
 void run_init_expr(Module *m, uint8_t type, uint32_t *pc) {
-    // Run the init_expr
+    /* Run the init_expr */
     Block block = {  0x01,0,
                     NULL,0,0,
                     0,0,0,0,0,0,0,0 };
@@ -1666,7 +1647,7 @@ void run_init_expr(Module *m, uint8_t type, uint32_t *pc) {
     block.start_addr = *pc;
     m->pc = *pc;
     push_block(m, &block, m->sp);
-    // WARNING: running code here to get initial value!
+    /* WARNING: running code here to get initial value! */
     wa_info("  running init_expr at 0x%x: %s\n",
             m->pc, block_repr(&block));
     interpret(m);
@@ -1679,13 +1660,11 @@ void run_init_expr(Module *m, uint8_t type, uint32_t *pc) {
 
 
 
-//
-// Public API
-//
+/* Public API */
 
 uint32_t get_export_fidx(Module *m, char *name) {
     uint32_t f;
-    // Find name function index
+    /* Find name function index */
     for (f=0; f<m->function_count; f++) {
         char *fname = m->functions[f].export_name;
         if (!fname) { continue; }
@@ -1721,7 +1700,7 @@ uint32_t id;
     Memory *mval;
     Block *functions,*function;
    
-    // Allocate the module
+    /* Allocate the module */
 #ifdef LOW_MEMORY_CONFIG
     wa_warn("Using low memory configuration: sizeof(Module)=%ul.\n", (unsigned int) sizeof(Module));
     dumpMemoryInfo();
@@ -1729,7 +1708,7 @@ uint32_t id;
     m = acalloc(1, sizeof(Module), "Module");
     m->options = options;
 
-    // Empty stacks
+    /* Empty stacks */
     m->sp  = -1;
     m->fp  = -1;
     m->csp = -1;
@@ -1740,14 +1719,14 @@ uint32_t id;
                                 "function->block_lookup");
     m->start_function = -1;
 
-    // Check the module
+    /* Check the module */
     pos = 0;
     word = read_uint32(bytes, &pos);
     ASSERT(word == WA_MAGIC, "Wrong module magic 0x%x\n", word);
     word = read_uint32(bytes, &pos);
     ASSERT(word == WA_VERSION, "Wrong module version 0x%x\n", word);
 
-    // Read the sections
+    /* Read the sections */
     while (pos < byte_count) {
         id = read_LEB(bytes, &pos, 7);
         slen = read_LEB(bytes, &pos, 32);
@@ -1760,8 +1739,8 @@ uint32_t id;
             name = read_string(bytes, &pos, NULL);
             wa_warn("  Section name '%s'\n", name);
             if (strncmp(name, "dylink", 7) == 0) {
-                // https://github.com/WebAssembly/tool-conventions/blob/master/DynamicLinking.md
-                // TODO: make use of these
+                /* https://github.com/WebAssembly/tool-conventions/blob/master/DynamicLinking.md */
+                /* TODO: make use of these */
                 memorysize = read_LEB(bytes, &pos, 32);
                 tablesize = read_LEB(bytes, &pos, 32);
                 (void)memorysize; (void)tablesize;
@@ -1791,7 +1770,7 @@ uint32_t id;
                 for (r=0; r<type->result_count; r++) {
                     type->results[r] = read_LEB(bytes, &pos, 32);
                 }
-                // TODO: calculate this above and remove get_type_mask
+                /* TODO: calculate this above and remove get_type_mask */
                 type->mask = get_type_mask(type);
                 wa_debug("  form: 0x%x, params: %d, results: %d\n",
                       type->form, type->param_count, type->result_count);
@@ -1814,15 +1793,15 @@ uint32_t id;
                 content_type = 0;
 
                 switch (external_kind) {
-                case 0x00: // Function
+                case 0x00: /* Function */
                     type_index = read_LEB(bytes, &pos, 32); break;
-                case 0x01: // Table
+                case 0x01: /* Table */
                     parse_table_type(m, &pos); break;
-                case 0x02: // Memory
+                case 0x02: /* Memory */
                     parse_memory_type(m, &pos); break;
-                case 0x03: // Global
+                case 0x03: /* Global */
                     content_type = read_LEB(bytes, &pos, 7);
-                    // TODO: use mutability
+                    /* TODO: use mutability */
                     mutability = read_LEB(bytes, &pos, 1);
                     (void)mutability; break;
                 }
@@ -1831,7 +1810,7 @@ uint32_t id;
 
 /*
                 do {
-                    // Try using module as handle filename
+                    // Try using module as handle filename 
                     if (resolvesym(import_module, import_field, &val, &err)) { break; }
 
                     // Try concatenating module and field using underscores
@@ -1843,8 +1822,8 @@ uint32_t id;
                     }
                     if (resolvesym(NULL, sym, &val, &err)) { break; }
 
-                    // If enabled, try without the leading underscore (added
-                    // by emscripten for external symbols)
+                    // If enabled, try without the leading underscore (added 
+                    // by emscripten for external symbols) 
                     if (m->options.dlsym_trim_underscore &&
                         (strncmp("env", import_module, 4) == 0) &&
                         (strncmp("_", import_field, 1) == 0)) {
@@ -1864,9 +1843,9 @@ uint32_t id;
                 free(sym);
                 exit(-1);*/
 
-                // Store in the right place
+                /* Store in the right place */
                 switch (external_kind) {
-                case 0x00:  // Function
+                case 0x00:  /* Function */
                     fidx = m->function_count;
                     m->import_count += 1;
                     m->function_count += 1;
@@ -1884,7 +1863,7 @@ uint32_t id;
 
                     func->func_ptr = ( void*(*)(void))val;
                     break;
-                case 0x01:  // Table
+                case 0x01:  /* Table */
                     ASSERT(!m->table.entries,
                            "More than 1 table not supported\n");
                     tval = val;
@@ -1897,7 +1876,7 @@ uint32_t id;
                     m->table.maximum = tval->maximum;
                     m->table.entries = tval->entries;
                     break;
-                case 0x02:  // Memory
+                case 0x02:  /* Memory */
                     ASSERT(!m->memory.bytes,
                            "More than 1 memory not supported\n");
                     mval = val;
@@ -1909,7 +1888,7 @@ uint32_t id;
                     m->memory.maximum = mval->maximum;
                     m->memory.bytes = mval->bytes;
                     break;
-                case 0x03:  // Global
+                case 0x03:  /* Global */
                     m->global_count += 1;
                     m->globals = arecalloc(m->globals,
                                            m->global_count-1, m->global_count,
@@ -1960,15 +1939,15 @@ uint32_t id;
             wa_debug("  table count: 0x%x\n", table_count);
             ASSERT(table_count == 1, "More than 1 table not supported");
 
-            // Allocate the table
-            //for (uint32_t c=0; c<table_count; c++) {
+            /* Allocate the table */
+            /* for (uint32_t c=0; c<table_count; c++) { */
             parse_table_type(m, &pos);
-            // If it's not imported then don't mangle it
+            /* If it's not imported then don't mangle it */
             m->options.mangle_table_index = false;
             m->table.entries = acalloc(m->table.size,
                                        sizeof(uint32_t),
                                        "Module->table.entries");
-            //}
+            /* } */
             break;
         case 5:
             wa_warn("Parsing Memory(5) section\n");
@@ -1976,25 +1955,25 @@ uint32_t id;
             wa_debug("  memory count: 0x%x\n", memory_count);
             ASSERT(memory_count == 1, "More than 1 memory not supported\n");
 
-            // Allocate memory
-            //for (uint32_t c=0; c<memory_count; c++) {
+            /* Allocate memory */
+            /* for (uint32_t c=0; c<memory_count; c++) { */
             parse_memory_type(m, &pos);
             wa_debug("parse memory section: about to allocate %i pages, total size %i Bytes ... \n", (int) m->memory.pages, (int) m->memory.pages*PAGE_SIZE);
             m->memory.bytes = acalloc(1,
                                     m->memory.pages*PAGE_SIZE,
                                     "parse memory section\n");
-            //m->memory.bytes = acalloc(m->memory.pages*PAGE_SIZE,
-            //                        sizeof(uint32_t),  // GGr: shoudn't this be bytes (means 1) ?!
-            //                        "parse memory section: Module->memory.bytes\n");
-            //}
+            /* m->memory.bytes = acalloc(m->memory.pages*PAGE_SIZE, */
+            /* sizeof(uint32_t),  // GGr: shoudn't this be bytes (means 1) ?! */
+            /* "parse memory section: Module->memory.bytes\n"); */
+            /* } */
             break;
         case 6:
             wa_warn("Parsing Global(6) section\n");
             global_count = read_LEB(bytes, &pos, 32);
             for (g=0; g<global_count; g++) {
-                // Same allocation Import of global above
+                /* Same allocation Import of global above */
                 type1 = read_LEB(bytes, &pos, 7);
-                // TODO: use mutability
+                /* TODO: use mutability */
                 mutability = read_LEB(bytes, &pos, 1);
                 (void)mutability;
                 gidx = m->global_count;
@@ -2003,7 +1982,7 @@ uint32_t id;
                                         sizeof(StackValue), "globals");
                 m->globals[gidx].value_type = type1;
 
-                // Run the init_expr to get global value
+                /* Run the init_expr to get global value */
                 run_init_expr(m, type1, &pos);
 
                 m->globals[gidx] = m->stack[m->sp--];
@@ -2040,18 +2019,18 @@ uint32_t id;
                 uint32_t index = read_LEB(bytes, &pos, 32);
                 ASSERT(index == 0, "Only 1 default table in MVP");
 
-                // Run the init_expr to get offset
+                /* Run the init_expr to get offset */
                 run_init_expr(m, I32, &pos);
 
                 offset = m->stack[m->sp--].value.uint32;
 
                 if (m->options.mangle_table_index) {
-                    // offset is the table address + the index (not sized for the
-                    // pointer size) so get the actual (sized) index
+                    /* offset is the table address + the index (not sized for the */
+                    /* pointer size) so get the actual (sized) index */
                     wa_debug("   origin offset: 0x%x, table addr: 0x%x, new offset: 0x%x\n",
                           offset, m->table.entries,
                           offset - (uint32_t)(uint64_t)m->table.entries);
-                    //offset = offset - (uint32_t)((uint64_t)m->table.entries & 0xFFFFFFFF);
+                    /* offset = offset - (uint32_t)((uint64_t)m->table.entries & 0xFFFFFFFF); */
                     offset = offset - (uint32_t)(uint64_t)m->table.entries;
                 }
 
@@ -2070,7 +2049,7 @@ uint32_t id;
             }
             pos = start_pos+slen;
             break;
-        // 9 and 11 are similar so keep them together, 10 is below 11
+        /* 9 and 11 are similar so keep them together, 10 is below 11 */
         case 11:
             wa_warn("Parsing Data(11) section (length: 0x%x)\n", slen);
             seg_count = read_LEB(bytes, &pos, 32);
@@ -2078,12 +2057,12 @@ uint32_t id;
                 uint32_t midx = read_LEB(bytes, &pos, 32);
                 ASSERT(midx == 0, "Only 1 default memory in MVP");
 
-                // Run the init_expr to get the offset
+                /* Run the init_expr to get the offset */
                 run_init_expr(m, I32, &pos);
 
                 offset = m->stack[m->sp--].value.uint32;
 
-                // Copy the data to the memory offset
+                /* Copy the data to the memory offset */
                 size = read_LEB(bytes, &pos, 32);
                 if (!m->options.disable_memory_bounds) {
                     ASSERT(offset+size <= m->memory.pages*PAGE_SIZE,
@@ -2106,22 +2085,22 @@ uint32_t id;
                 payload_start = pos;
                 local_count = read_LEB(bytes, &pos, 32);
 
-                // Local variable handling
+                /* Local variable handling */
 
-                // Get number of locals for alloc
+                /* Get number of locals for alloc */
                 save_pos = pos;
                 function->local_count = 0;
                 for (l=0; l<local_count; l++) {
                     lecount = read_LEB(bytes, &pos, 32);
                     function->local_count += lecount;
                     tidx =  read_LEB(bytes, &pos, 7);
-                    (void)tidx; // TODO: use tidx?
+                    (void)tidx; /* TODO: use tidx? */
                 }
                 function->locals = acalloc(function->local_count,
                                            sizeof(uint32_t),
                                            "function->locals");
 
-                // Restore position and read the locals
+                /* Restore position and read the locals */
                 pos = save_pos;
                 lidx = 0;
                 for (l=0; l<local_count; l++) {
@@ -2159,16 +2138,16 @@ uint32_t id;
         if (should_trace()) { dump_stacks(m); }
 
         if (fidx < m->import_count) {
-            thunk_out(m, fidx);     // import/thunk call
+            thunk_out(m, fidx);     /* import/thunk call */
         } else {
-            setup_call(m, fidx);    // regular function call
+            setup_call(m, fidx);    /* regular function call */
         }
 
         if (m->csp < 0) {
-            // start function was a direct external call
+            /* start function was a direct external call */
             result = res_new_ok();
         } else {
-            // run the function setup by setup_call
+            /* run the function setup by setup_call */
             result = interpret(m);
         }
         if (res_err(result)) {
@@ -2179,8 +2158,8 @@ uint32_t id;
     return m;
 }
 
-// if entry == NULL,  attempt to invoke 'main' or '_main'
-// Return value of false means exception occured
+/* if entry == NULL,  attempt to invoke 'main' or '_main' */
+/* Return value of false means exception occured */
 result_t invoke(Module *m, uint32_t fidx) {
     result_t      result;
 
