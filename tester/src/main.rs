@@ -245,7 +245,7 @@ mod core_test {
         [binary_leb128, "address"],
         // [block, "block"],
         // [br, "br"],
-        // [br_if, "br_if"],
+        [br_if, "br_if"],
         // [br_table, "br_table"],
         // [bulk, "bulk"],
         // [call, "call"],
@@ -285,10 +285,26 @@ mod core_test {
         // [linking, "linking"],
         // [load, "load"],
         [local_get, "local_get"],
-
-
-
-   // [test_nop, "nop"],
+        [local_set, "local_set"],
+        // [local_tee, "local_tee"],
+        // [loop_, "loop"],
+        [memory, "memory"],
+        // [memory_copy, "memory_copy"],
+        // [memory_fill, "memory_fill"],
+        // [memory_grow, "memory_grow"],
+        // [memory_init, "memory_init"],
+        // [memory_redundancy, "memory_redundancy"],
+        [memory_size, "memory_size"],
+        [memory_trap, "memory_trap"],
+        // [names, "names"],
+        // [nop, "nop"],
+        [obsolete_keywords, "obsolete-keywords"],
+        // [ref_func, "ref_func"],
+        // [ref_is_null, "ref_is_null"],
+        // [ref_null, "ref_null"],
+        [return_, "local_get"],
+        // [select, "select"],
+        [skip_stack_guard_page, "skip-stack-guard-page"],
 }
 }
 

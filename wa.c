@@ -790,8 +790,7 @@ result_t interpret(Module *m) {
                 }
             }
             /* if true, keep going */
-                wa_trace("      - cond: 0x%x jump to 0x%x, block: %s\n",
-                       cond, m->pc, block_repr(block));
+                //wa_trace("      - cond: 0x%x jump to 0x%x, block: %s\n",cond, m->pc, block_repr(block));
             continue;
         case 0x05:  /* else */
             block = m->callstack[m->csp].block;
