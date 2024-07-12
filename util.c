@@ -7,7 +7,7 @@
 
 #include "util.h"
 
-int log_level = 0;
+int log_level = 5;
 
 bool should_trace(void) {
     return log_level > 4;
@@ -62,5 +62,3 @@ if (log_level > 0) {
     va_end(ap);
 }
 }
-
-

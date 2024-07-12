@@ -44,7 +44,6 @@ static uint32_t popcntll( uint64_t x ) {
         }
     }
     return s;
-    
 }
 
 static uint32_t clzll( uint64_t x ) {
@@ -66,14 +65,7 @@ static uint32_t ctz( uint32_t x )
     return popcnt((x & -x) - 1);
 }
 
-static bool wa_signbit(double x) {
-    union {
-        double d;
-        uint64_t u64;
-    } u;
-    u.d =  x;
-    return u.u64 >> 63;
-}
+
 
 /* this is wrong but close enough*/
 static double wa_rint(double x) {
@@ -82,7 +74,7 @@ static double wa_rint(double x) {
 
 
 
-char OPERATOR_INFO[][20] = {
+const char OPERATOR_INFO[][20] = {
     /* Control flow operators */
     "unreachable",           /* 0x00 */
     "nop",                   /* 0x01 */
@@ -310,15 +302,15 @@ char OPERATOR_INFO[][20] = {
 
 /* Size of memory load.
  This starts with the first memory load operator at opcode 0x28 */
-uint32_t LOAD_SIZE[] = {
+const uint32_t LOAD_SIZE[] = {
     4, 8, 4, 8, 1, 1, 2, 2, 1, 1, 2, 2, 4, 4, /* loads */
     4, 8, 4, 8, 1, 2, 1, 2, 4};               /* stores */
 
 
 /* Static definition of block_types*/
-uint32_t block_type_results[4][1] = {{I32}, {I64}, {F32}, {F64}};
+static uint32_t block_type_results[4][1] = {{I32}, {I64}, {F32}, {F64}};
 
-Type block_types[5] = {
+static Type block_types[5] = {
     { BLOCK, 0,0, 0, 0, 0},
     { BLOCK, 0,0, 1, block_type_results[0], 0},
     { BLOCK, 0,0, 1, block_type_results[1], 0},
@@ -383,18 +375,22 @@ static Type *get_block_type(Module* m, uint8_t value_type) {
     case 0x41:
         FATAL("reserved block_type value_type: %d\n", value_type);
         return NULL;
-    default:  
+    default:
         return &m->types[value_type];
     }
 }
 
 /* TODO: calculate this while parsing types */
-uint64_t get_type_mask(Type *type) {
+static uint64_t get_type_mask(Type *type) {
 	uint32_t p;
     uint64_t  mask = 0x80;
 
     if (type->result_count == 1) {
         mask |= 0x80 - type->results[0];
+    } else if (type->result_count == 3) {
+        mask |= 0x80 - type->results[0] - type->results[1] - type->results[2];
+    } else {
+        printf("ERR GTM\n");
     }
     mask = mask << 4;
     for(p=0; p<type->param_count; p++) {
@@ -409,16 +405,16 @@ char _value_str[256];
 char *value_repr(StackValue *v) {
     memset(_value_str, 0, 256);
     switch (v->value_type) {
-    case I32: 
-        sprintf(_value_str, "0x%x:i32",  v->value.uint32); 
+    case I32:
+        sprintf(_value_str, "0x%x:i32",  v->value.uint32);
         break;
-    case I64: 
+    case I64:
         sprintf(_value_str, "0x%llx:i64", v->value.uint64);
          break;
     case F32:
         sprintf(_value_str, "%.7g:f32",  v->value.f32);
         break;
-    case F64: 
+    case F64:
         sprintf(_value_str, "%.7g:f64",  v->value.f64);
         break;
     default:
@@ -428,7 +424,8 @@ char *value_repr(StackValue *v) {
 }
 
 char _block_str[1024];
-char *block_repr(Block *b) {
+static char *block_repr(Block *b) {
+    memset(_block_str, 0, 256);
     if (b->block_type == 0) {
         sprintf(_block_str,
                  "fn0x%x<%d/%d->%d>", b->fidx, b->type->param_count,
@@ -443,7 +440,7 @@ char *block_repr(Block *b) {
     return _block_str;
 }
 
-void dump_stacks(Module *m) {
+static void dump_stacks(Module *m) {
 	int i;
     wa_warn("      * stack:     [");
     for (i=0; i<=m->sp; i++) {
@@ -464,7 +461,7 @@ void dump_stacks(Module *m) {
 }
 
 
-void parse_table_type(Module *m, uint32_t *pos) {
+static void parse_table_type(Module *m, uint32_t *pos) {
 	uint32_t flags;
 	uint32_t tsize;
     m->table.elem_type = read_LEB(m->bytes, pos, 7);
@@ -485,7 +482,7 @@ void parse_table_type(Module *m, uint32_t *pos) {
     wa_debug("  table size: %d\n", tsize);
 }
 
-void parse_memory_type(Module *m, uint32_t *pos) {
+static void parse_memory_type(Module *m, uint32_t *pos) {
     uint32_t flags = read_LEB(m->bytes, pos, 32);
     uint32_t pages = read_LEB(m->bytes, pos, 32); /* Initial size */
     m->memory.initial = pages;
@@ -499,7 +496,7 @@ void parse_memory_type(Module *m, uint32_t *pos) {
     }
 }
 
-void skip_immediates(uint8_t *bytes, uint32_t *pos) {
+static void skip_immediates(uint8_t *bytes, uint32_t *pos) {
 	uint32_t i;
 
     uint32_t count, opcode = bytes[*pos];
@@ -575,7 +572,7 @@ case 0x0d:    /* br, br_if */
     }
 }
 
-void find_blocks(Module *m) {
+static void find_blocks(Module *m) {
     Block    *function;
     Block    *block;
     Block    *blockstack[BLOCKSTACK_SIZE];
@@ -635,7 +632,7 @@ void find_blocks(Module *m) {
 
 /* Stack machine (byte code related functions) */
 
-void push_block(Module *m, Block *block, int sp) {
+static void push_block(Module *m, Block *block, int sp) {
     m->csp += 1;
     m->callstack[m->csp].block = block;
     m->callstack[m->csp].sp = sp;
@@ -643,7 +640,7 @@ void push_block(Module *m, Block *block, int sp) {
     m->callstack[m->csp].ra = m->pc;
 }
 
-Block *pop_block(Module *m) {
+static result_t pop_block(Module *m, Block** b) {
     Frame *frame = &m->callstack[m->csp--];
     Type *t = frame->block->type;
 
@@ -655,8 +652,21 @@ Block *pop_block(Module *m) {
     if (t->result_count == 1) {
         if (m->stack[m->sp].value_type != t->results[0]) {
           /* sprintf(exception, "call type mismatch"); */
-            return NULL;
+            return res_new_err("Bad ty");
         }
+    } else if (t->result_count == 3) {
+        // if (m->stack[m->sp].value_type != t->results[0]) {
+        //     printf("BUG a\n");
+        //   /* sprintf(exception, "call type mismatch"); */
+        //     return res_new_err("Bad ty b");
+        // }
+
+    } else if (t->result_count == 0) {
+    } else if (t->result_count == 2) {
+
+    } else {
+        printf("BUG Q %d\n", t->result_count);
+        return res_new_err("bad res");
     }
 
     /* Restore stack pointer */
@@ -666,6 +676,42 @@ Block *pop_block(Module *m) {
             m->stack[frame->sp+1] = m->stack[m->sp];
             m->sp = frame->sp+1;
         }
+    } else if (t->result_count == 3) {
+            /* Save top value as result */
+            if (frame->sp < m->sp) {
+                StackValue s[3];
+                s[0] = m->stack[m->sp];
+                s[1] = m->stack[m->sp-1];
+                s[2] = m->stack[m->sp-2];
+
+                // m->stack[frame->sp+3] = s[0];
+                // m->stack[frame->sp+2] = s[1];
+                m->stack[frame->sp+1] = s[2];
+                m->stack[frame->sp+1].value_type = F64;
+                // m->stack[frame->sp+2] = s[1];
+                // m->stack[frame->sp+3] = s[2];
+
+                // m->stack[frame->sp+1] = m->stack[m->sp+1];
+
+                // m->stack[frame->sp+2] = m->stack[m->sp+1];
+
+                // m->stack[frame->sp+3] = m->stack[m->sp+2];
+
+
+                m->sp = frame->sp+3;
+            }
+    } else if (t->result_count == 2) {
+            /* Save top value as result */
+            if (frame->sp < m->sp) {
+                m->stack[frame->sp+1] = m->stack[m->sp+1];
+
+                m->stack[frame->sp+2] = m->stack[m->sp];
+
+
+
+                m->sp = frame->sp+2;
+            }
+
     } else {
         if (frame->sp < m->sp) {
             m->sp = frame->sp;
@@ -677,7 +723,9 @@ Block *pop_block(Module *m) {
         m->pc = frame->ra;
     }
 
-    return frame->block;
+    *b = frame->block;
+
+    return res_new_ok();
 }
 
 /* Setup a function */
@@ -738,16 +786,17 @@ result_t interpret(Module *m) {
     double       j, k, l; /* F64 math */
     bool         overflow = false;
     StackValue* sval;
+    result_t res;
 
     while (m->pc < m->byte_count) {
         opcode = bytes[m->pc];
         cur_pc = m->pc;
         m->pc += 1;
 
-        /* if (should_trace()) { */
-        /* dump_stacks(m); */
-            /* fprintf(stderr, "    0x%x <0x%x/%s>\n", cur_pc, opcode, OPERATOR_INFO[opcode]); */
-        /* } */
+         if (should_trace()) {
+         dump_stacks(m);
+             fprintf(stderr, "    0x%x <0x%x/%s>\n", cur_pc, opcode, OPERATOR_INFO[opcode]);
+         }
 
         switch (opcode) {
 
@@ -790,30 +839,24 @@ result_t interpret(Module *m) {
                 }
             }
             /* if true, keep going */
-                //wa_trace("      - cond: 0x%x jump to 0x%x, block: %s\n",cond, m->pc, block_repr(block));
             continue;
         case 0x05:  /* else */
             block = m->callstack[m->csp].block;
             m->pc = block->br_addr;
-            
+
                 wa_trace("      - of %s jump to 0x%x\n", block_repr(block), m->pc);
-            
+
             continue;
         case 0x0b:  /* end */
-            block = pop_block(m);
-            if (block == NULL) {
-                return res_new_err("pop_block"); /* an exception (set by pop_block) */
+            res = pop_block(m, &block);
+            if (res_err(res)) {
+                return res_new_nest(res, "invoke"); /* an exception (set by pop_block) */
             }
             wa_trace("      - of %s\n", block_repr(block));
             if (block->block_type == 0x00) { /* Function */
-                
-                    wa_trace("  << fn0x%x(%d) %s = %s\n",
-                      block->fidx, block->fidx,
-                      block->export_name ? block->export_name : "",
-                      block->type->result_count > 0 ?
-                        value_repr(&m->stack[m->sp]) :
-                        "_");
-                
+
+                    /* wa_trace("  << fn0x%x(%d) %s = %s\n", block->fidx, block->fidx, block->export_name ? block->export_name : "", block->type->result_count > 0 ? value_repr(&m->stack[m->sp]) : "_"); */
+
                 if (m->csp == -1) {
                     /* Return to top-level */
                     return res_new_ok();
@@ -843,7 +886,7 @@ return res_new_ok();
                 /* set to end for pop_block */
                 m->pc = m->callstack[m->csp].block->br_addr;
             }
-             wa_trace("      - depth: 0x%x, cond: 0x%x, to: 0x%x\n", depth, cond, m->pc); 
+             wa_trace("      - depth: 0x%x, cond: 0x%x, to: 0x%x\n", depth, cond, m->pc);
             continue;
         case 0x0e:  /* br_table */
             count = read_LEB(bytes, &m->pc, 32);
@@ -866,9 +909,9 @@ return res_new_ok();
             m->csp -= depth;
             /* set to end for pop_block */
             m->pc = m->callstack[m->csp].block->br_addr;
-            
+
                 wa_trace("      - count: %d, didx: %d, to: 0x%x\n", count, didx, m->pc);
-            
+
             continue;
         case 0x0f:  /* return */
             while (m->csp >= 0 &&
@@ -878,9 +921,9 @@ return res_new_ok();
             /* Set the program count to the end of the function */
             /* The actual pop_block and return is handled by the end opcode. */
             m->pc = m->callstack[0].block->end_addr;
-            
+
                 wa_trace("      - to: 0x%x\n", m->pc);
-            
+
             continue;
 
 
@@ -895,9 +938,9 @@ return res_new_ok();
                     return res_new_err("call stack exhausted");
                 }
                 setup_call(m, fidx);  /* regular function call */
-                
+
                     wa_trace("      - calling function fidx: %d at: 0x%x\n", fidx, m->pc);
-                
+
             }
             continue;
         case 0x11:  /* call_indirect */
@@ -908,10 +951,10 @@ return res_new_ok();
             if (m->options.mangle_table_index) {
                 /* val is the table address + the index (not sized for the */
                 /* pointer size) so get the actual (sized) index */
-                
+
                     wa_trace("      - entries: %p, original val: 0x%x, new val: 0x%x\n",
                         m->table.entries, val, m->table.entries - val);
-                
+
                 /* val = val - (uint32_t)((uint64_t)m->table.entries & 0xFFFFFFFF); */
                 val = val - (uint32_t)(uint64_t)m->table.entries;
             }
@@ -922,10 +965,10 @@ return res_new_ok();
             }
 
             fidx = m->table.entries[val];
-            
+
                 wa_trace("       - call_indirect tidx: %d, val: 0x%x, fidx: 0x%x\n",
                       tidx, val, fidx);
-            
+
 
             if (fidx < m->import_count) {
                 thunk_out(m, fidx);    /* import/thunk call */
@@ -952,11 +995,11 @@ return res_new_ok();
                     }
                 }
 
-                
+
                     wa_trace("      - tidx: %d, table idx: %d, "
                           "calling function fidx: %d at: 0x%x\n",
                         tidx, val, fidx, m->pc);
-                
+
             }
             continue;
 
@@ -976,43 +1019,43 @@ return res_new_ok();
         /* Variable access */
         case 0x20:  /* get_local */
             arg = read_LEB(bytes, &m->pc, 32);
-            
+
                 wa_trace("      - arg: 0x%x, got %s\n",
                        arg, value_repr(&stack[m->fp+arg]));
-            
+
             stack[++m->sp] = stack[m->fp+arg];
             continue;
         case 0x21:  /* set_local */
             arg = read_LEB(bytes, &m->pc, 32);
             stack[m->fp+arg] = stack[m->sp--];
-            
+
                 wa_trace("      - arg: 0x%x, to %s\n",
                        arg, value_repr(&stack[m->sp]));
-            
+
             continue;
         case 0x22:  /* tee_local */
             arg = read_LEB(bytes, &m->pc, 32);
             stack[m->fp+arg] = stack[m->sp];
-            
+
                 wa_trace("      - arg: 0x%x, to %s\n",
                        arg, value_repr(&stack[m->sp]));
-            
+
             continue;
         case 0x23:  /* get_global */
             arg = read_LEB(bytes, &m->pc, 32);
-            
+
                 wa_trace("      - arg: 0x%x, got %s\n",
                        arg, value_repr(&m->globals[arg]));
-            
+
             stack[++m->sp] = m->globals[arg];
             continue;
         case 0x24:  /* set_global */
             arg = read_LEB(bytes, &m->pc, 32);
             m->globals[arg] = stack[m->sp--];
-            
+
                 wa_trace("      - arg: 0x%x, to %s\n",
                        arg, value_repr(&m->globals[arg]));
-            
+
             continue;
 
         /* Memory-related operators */
@@ -1416,9 +1459,9 @@ case 0x3e:
 case 0x7c:
 case 0x7d:
 case 0x7e:
-case 0x7f:                
+case 0x7f:
 case 0x80:
-case 0x81:                
+case 0x81:
 case 0x82:
 case 0x83:
 case 0x84:
@@ -1464,7 +1507,7 @@ case 0x8a:
 
         /* f32 binary */
             case 0x92:case 0x93:case 0x94:case 0x95:case 0x96:case 0x97:case 0x98:
-                
+
             g = stack[m->sp-1].value.f32;
             h = stack[m->sp].value.f32;
             m->sp -= 1;
@@ -1475,7 +1518,7 @@ case 0x8a:
             case 0x95: i = g / h; break;  /* f32.div */
             case 0x96: i = wa_fmin(g, h); break;  /* f32.min */
             case 0x97: i = wa_fmax(g, h); break;  /* f32.max */
-            case 0x98: i = wa_signbit(h) ? -fabs(g) : fabs(g); break;  /* f32.copysign */
+            case 0x98: i = _signbit(h) ? -fabs(g) : fabs(g); break;  /* f32.copysign */
             }
             stack[m->sp].value.f32 = i;
             continue;
@@ -1492,7 +1535,7 @@ case 0x8a:
             case 0xa3: l = j / k; break;  /* f64.div */
             case 0xa4: l = wa_fmin(j, k); break;  /* f64.min */
             case 0xa5: l = wa_fmax(j, k); break;  /* f64.max */
-            case 0xa6: l = wa_signbit(k) ? -fabs(j) : fabs(j); break;  /* f64.copysign */
+            case 0xa6: l = _signbit(k) ? -fabs(j) : fabs(j); break;  /* f64.copysign */
             }
             stack[m->sp].value.f64 = l;
             continue;
@@ -1540,7 +1583,7 @@ case 0x8a:
                 stack[m->sp].value_type = I64;
 		break;
 		}
-	case 0xad:{  
+	case 0xad:{
 		stack[m->sp].value.uint64 = stack[m->sp].value.uint32;
                 stack[m->sp].value_type = I64;
 		break;  /* i64.extend_u/i32 */
@@ -1627,7 +1670,7 @@ case 0x8a:
                 sext_32_64(&stack[m->sp].value.uint64);
 		break;
 
-        default: 
+        default:
         {
             result_t err;
                 asprintf(&err.msg, "unrecognized opcode 0x%x\n", opcode);
@@ -1689,16 +1732,16 @@ uint32_t id;
    int start_pos;
    char* import_module,*import_field;
    uint8_t content_type,mutability,type1;
-   
+
    void *val = NULL;
     char *err;
     char  *sym;
-    
+
     Block *func;
     Table *tval;
     Memory *mval;
     Block *functions,*function;
-   
+
     /* Allocate the module */
 #ifdef LOW_MEMORY_CONFIG
     wa_warn("Using low memory configuration: sizeof(Module)=%ul.\n", (unsigned int) sizeof(Module));
@@ -1712,8 +1755,9 @@ uint32_t id;
     m->fp  = -1;
     m->csp = -1;
 
-    m->bytes = bytes;
+    m->bytes = calloc(1, byte_count);
     m->byte_count = byte_count;
+    memcpy(m->bytes, bytes, byte_count);
     m->block_lookup = acalloc(m->byte_count, sizeof(Block *),
                                 "function->block_lookup");
     m->start_function = -1;
@@ -1809,7 +1853,7 @@ uint32_t id;
 
 /*
                 do {
-                    // Try using module as handle filename 
+                    // Try using module as handle filename
                     if (resolvesym(import_module, import_field, &val, &err)) { break; }
 
                     // Try concatenating module and field using underscores
@@ -1821,8 +1865,8 @@ uint32_t id;
                     }
                     if (resolvesym(NULL, sym, &val, &err)) { break; }
 
-                    // If enabled, try without the leading underscore (added 
-                    // by emscripten for external symbols) 
+                    // If enabled, try without the leading underscore (added
+                    // by emscripten for external symbols)
                     if (m->options.dlsym_trim_underscore &&
                         (strncmp("env", import_module, 4) == 0) &&
                         (strncmp("_", import_field, 1) == 0)) {
@@ -1838,7 +1882,7 @@ uint32_t id;
                 } while(false);
                 */
                 /*sprintf(sym, "%s", import_field);
-                FATAL("Error: wac's functinality to load import function from DLL has been removed. %s\n", err);              
+                FATAL("Error: wac's functinality to load import function from DLL has been removed. %s\n", err);
                 free(sym);
                 exit(-1);*/
 
@@ -1916,7 +1960,7 @@ uint32_t id;
             wa_debug("  import_count: %d, new count: %d\n",
                   m->import_count, m->function_count);
 
-            
+
             functions = acalloc(m->function_count, sizeof(Block),
                                 "Block(function)");
             if (m->import_count != 0) {
@@ -2159,16 +2203,16 @@ uint32_t id;
 
 /* if entry == NULL,  attempt to invoke 'main' or '_main' */
 /* Return value of false means exception occured */
-result_t invoke(Module *m, uint32_t fidx) {
+result_t invoke(Module *mod, uint32_t fidx) {
     result_t      result;
 
-    if (should_trace()) { dump_stacks(m); }
+    if (should_trace()) { dump_stacks(mod); }
 
-    setup_call(m, fidx);
+    setup_call(mod, fidx);
 
-    result = interpret(m);
+    result = interpret(mod);
 
-    if (should_trace()) { dump_stacks(m); }
+    if (should_trace()) { dump_stacks(mod); }
 
     return result;
 }

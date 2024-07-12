@@ -167,16 +167,14 @@ typedef struct Module {
 // Function declarations (Public API)
 //
 
-extern char exception[];
-uint64_t get_type_mask(Type *type);
 char *value_repr(StackValue *v);
 void (*setup_thunk_in(uint32_t fidx))(void);
 void setup_call(Module *m, uint32_t fidx);
 result_t interpret(Module *m);
 
-uint32_t get_export_fidx(Module *m, char *name);
-Module *load_module(uint8_t *bytes, uint32_t byte_count, Options options);
-result_t invoke(Module *m, uint32_t fidx);
+extern uint32_t get_export_fidx(Module *m, char *name);
+extern Module *load_module(uint8_t *bytes, uint32_t byte_count, Options options);
+extern result_t invoke(Module *m, uint32_t fidx);
 
 #ifdef __cplusplus
 }

@@ -138,8 +138,13 @@ static uint64_t rotr64(uint64_t n, unsigned int c) {
   return (n>>c) | (n<<( (-c)&mask ));
 }
 
-static bool _signbit(double x) {
-    return x < 0;
+static int _signbit(double x) {
+    union {
+        double d;
+        uint64_t u64;
+    } u;
+    u.d =  x;
+    return u.u64 >> 63;
 }
 
 static double _fmax(double a, double b) {
