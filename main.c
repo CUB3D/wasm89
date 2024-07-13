@@ -181,17 +181,17 @@ if (f)
     m->path = "arith,wasm";
 
     init_thunk_in(m);
-   
+
     // setup argc/argv
     m->stack[++m->sp].value_type = I32;
-   m->stack[m->sp].value.uint32 = 3; 
+   m->stack[m->sp].value.uint32 = 3;
   //   m->stack[m->sp].value.uint32 = 361;  // mac result that fits to two bytes
 
 
     // Invoke main/_main function and exit
-    fidx = get_export_fidx(m, "fibRec");
+    fidx = get_export_fidx(m, "fibRec", strlen("fibRec")+1);
     if (fidx == -1) {
-        fidx = get_export_fidx(m, "fib");
+        fidx = get_export_fidx(m, "fib", strlen("fib")+1);
 	if (fidx == -1) {
 	    FATAL("no exported function named 'fib' or 'finbRec'\n");
 	}
@@ -212,7 +212,7 @@ if (f)
             case F64: printf("F64 return value: %.7g:f64",  result->value.f64);    break;
         }
         // value_repr(&m->stack[m->sp--]);
-        
+
     } else {
         printf("No result.\n");
     }

@@ -2,13 +2,14 @@
 
 #include "util.h"
 #include "wa.h"
+#include "wa_result.h"
 #include "thunk.h"
 
 /*
  Outbound Thunks (calling imported functions)
 */
 
-void thunk_out(Module *m, uint32_t fidx) {
+result_t thunk_out(Module *m, uint32_t fidx) {
 	int p;
     Block    *func = &m->functions[fidx];
     Type     *type = func->type;
@@ -21,6 +22,12 @@ void thunk_out(Module *m, uint32_t fidx) {
         }
         wa_warn("), %d results\n", type->result_count);
         wa_debug("      mask: 0x%llx\n", type->mask);
+    }
+
+    if (!func->func_ptr) {
+        char* msg;
+        asprintf(&msg, "No thunk for %s\n", func->import_field);
+        return res_new_err(msg);
     }
 
     switch (type->mask) {
@@ -52,6 +59,8 @@ void thunk_out(Module *m, uint32_t fidx) {
     wa_trace("  <<< thunk_out 0x%x(%d) %s.%s = %s\n",
             func->fidx, func->fidx, func->import_module, func->import_field,
             type->result_count > 0 ? value_repr(&m->stack[m->sp]) : "_");
+
+    return res_new_ok();
 }
 
 
@@ -84,7 +93,7 @@ void (*setup_thunk_in(uint32_t fidx))(void) {
     /* Make space on the stack*/
     m->sp += type->param_count;
 
-    
+
         wa_trace("  {{}} setup_thunk_in '%s', mask: 0x%lluxx, ARGS FOR '>>' ARE BOGUS\n",
              func->export_name, type->mask);
 
@@ -112,4 +121,3 @@ void (*setup_thunk_in(uint32_t fidx))(void) {
 void init_thunk_in(Module *m) {
     _wa_current_module_ = m; /* TODO: global state, clean up somehow*/
 }
-

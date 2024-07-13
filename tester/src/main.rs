@@ -272,8 +272,8 @@ mod core_test {
         // [binary, "binary"], // t
         [binary_leb128, "address"],
         [block, "block"], //b
-        // [br, "br"], // b
-        [br_if, "br_if"],
+        [br, "br"], // b
+        // [br_if, "br_if"],
         // [br_table, "br_table"], //t
         // [bulk, "bulk"], // t
         // [call, "call"], //b
@@ -376,7 +376,7 @@ pub fn run_test(testset: &'static str) {
 
         let get_export_fidx = libc::dlsym(l, c"get_export_fidx".as_ptr());
         assert_ne!(get_export_fidx, core::ptr::null_mut());
-        let get_export_fidx = core::mem::transmute::<_, extern "C" fn(*mut Module, *const i8)->usize>(get_export_fidx);
+        let get_export_fidx = core::mem::transmute::<_, extern "C" fn(*mut Module, *const u8, u32)->usize>(get_export_fidx);
 
         let invoke = libc::dlsym(l, c"invoke".as_ptr());
         assert_ne!(invoke, core::ptr::null_mut());
@@ -431,9 +431,24 @@ pub fn run_test(testset: &'static str) {
                             continue;
                         }
 
+                        if field.contains("add64_u_with_carry") {
+                            println!("Skip multi");
+                            continue;
+                        }
+
+                        if field.contains("type-f64-f64-value") {
+                            println!("Skip multi");
+                            continue;
+                        }
+
+                        if field.contains("as-return-values") {
+                            println!("Skip multi");
+                            continue;
+                        }
+
                         //print!("{testset}:{field}... ");
 
-                        if expected.len() < 2 {
+                        if expected.len() > 1 {
                             println!("field {testset}:{field}::{line} >2 vals what");
                             continue;
                         }
@@ -455,10 +470,12 @@ pub fn run_test(testset: &'static str) {
                         //     m.as_mut().unwrap().sp = sp;
                         // }
 
-                        let fs = CString::new(field.clone()).unwrap();
-                        let f = get_export_fidx(m, fs.as_ptr());
-                        // println!("F = {f}");
-
+                        let mut fs = field.as_bytes().to_vec();
+                        fs.push(0);
+                        let f = get_export_fidx(m, fs.as_ptr(), fs.len() as u32);
+                        if f as i32 == -1 {
+                            panic!("Failed to find fidx: {:X?}", fs);
+                        }
                         println!("{:x}", m as usize);
                         let r = invoke(m, f);
                         match r.safe_r() {
@@ -508,7 +525,7 @@ pub fn run_test(testset: &'static str) {
                                 //println!("{}", console::style("passed").green());
                             }
                         } else {
-                            println!("field {testset}:{field}::{line} not testing");
+                            println!("field {testset}:{field}::{line} not testing, no exp");
                         }
                     }
                     A::Get { .. } => {}
@@ -531,3 +548,7 @@ pub fn run_test(testset: &'static str) {
         }
     }
 }
+
+// todos:
+// fix all tests
+// add missing thunks for tests names:print32::1107

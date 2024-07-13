@@ -70,6 +70,7 @@ typedef struct Block {
     uint32_t   else_addr;     // if block only
     uint32_t   br_addr;       // blocks only
     char      *export_name;   // function only (exported)
+    size_t    name_len; // size of name buffer in bytes
     char      *import_module; // function only (imported)
     char      *import_field;  // function only (imported)
     void      *(*func_ptr)(void); // function only (imported)
@@ -172,7 +173,7 @@ void (*setup_thunk_in(uint32_t fidx))(void);
 void setup_call(Module *m, uint32_t fidx);
 result_t interpret(Module *m);
 
-extern uint32_t get_export_fidx(Module *m, char *name);
+extern uint32_t get_export_fidx(Module *m, char *name, uint32_t name_sz);
 extern Module *load_module(uint8_t *bytes, uint32_t byte_count, Options options);
 extern result_t invoke(Module *m, uint32_t fidx);
 

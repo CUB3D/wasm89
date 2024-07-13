@@ -2,6 +2,7 @@
 #define _THUNK_H
 
 #include "wa.h"
+#include "wa_result.h"
 
 #define TH_C_0 void
 #define TH_C_i uint32_t
@@ -100,8 +101,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-    
-void thunk_out(Module *m, uint32_t fidx);
+
+result_t thunk_out(Module *m, uint32_t fidx);
 
 void init_thunk_in(Module *m);
 

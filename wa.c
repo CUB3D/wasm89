@@ -654,18 +654,9 @@ static result_t pop_block(Module *m, Block** b) {
           /* sprintf(exception, "call type mismatch"); */
             return res_new_err("Bad ty");
         }
-    } else if (t->result_count == 3) {
-        // if (m->stack[m->sp].value_type != t->results[0]) {
-        //     printf("BUG a\n");
-        //   /* sprintf(exception, "call type mismatch"); */
-        //     return res_new_err("Bad ty b");
-        // }
-
     } else if (t->result_count == 0) {
-    } else if (t->result_count == 2) {
-
     } else {
-        printf("BUG Q %d\n", t->result_count);
+            printf("BUG Q %d\n", t->result_count);
         return res_new_err("bad res");
     }
 
@@ -676,47 +667,49 @@ static result_t pop_block(Module *m, Block** b) {
             m->stack[frame->sp+1] = m->stack[m->sp];
             m->sp = frame->sp+1;
         }
-    } else if (t->result_count == 3) {
-            /* Save top value as result */
-            if (frame->sp < m->sp) {
-                StackValue s[3];
-                s[0] = m->stack[m->sp];
-                s[1] = m->stack[m->sp-1];
-                s[2] = m->stack[m->sp-2];
-
-                // m->stack[frame->sp+3] = s[0];
-                // m->stack[frame->sp+2] = s[1];
-                m->stack[frame->sp+1] = s[2];
-                m->stack[frame->sp+1].value_type = F64;
-                // m->stack[frame->sp+2] = s[1];
-                // m->stack[frame->sp+3] = s[2];
-
-                // m->stack[frame->sp+1] = m->stack[m->sp+1];
-
-                // m->stack[frame->sp+2] = m->stack[m->sp+1];
-
-                // m->stack[frame->sp+3] = m->stack[m->sp+2];
-
-
-                m->sp = frame->sp+3;
-            }
-    } else if (t->result_count == 2) {
-            /* Save top value as result */
-            if (frame->sp < m->sp) {
-                m->stack[frame->sp+1] = m->stack[m->sp+1];
-
-                m->stack[frame->sp+2] = m->stack[m->sp];
-
-
-
-                m->sp = frame->sp+2;
-            }
-
-    } else {
+    } else if (t->result_count == 0) {
         if (frame->sp < m->sp) {
             m->sp = frame->sp;
         }
+    } else {
+return res_new_err("unreachable 1");
     }
+
+    /* Save top value as result
+    if (frame->sp < m->sp) {
+        StackValue s[3];
+        s[0] = m->stack[m->sp];
+        s[1] = m->stack[m->sp-1];
+        s[2] = m->stack[m->sp-2];
+
+        // m->stack[frame->sp+3] = s[0];
+        // m->stack[frame->sp+2] = s[1];
+        m->stack[frame->sp+1] = s[2];
+        m->stack[frame->sp+1].value_type = F64;
+        // m->stack[frame->sp+2] = s[1];
+        // m->stack[frame->sp+3] = s[2];
+
+        // m->stack[frame->sp+1] = m->stack[m->sp+1];
+
+        // m->stack[frame->sp+2] = m->stack[m->sp+1];
+
+        // m->stack[frame->sp+3] = m->stack[m->sp+2];
+
+
+        m->sp = frame->sp+3;
+    }
+} else if (t->result_count == 2) {
+     Save top value as result
+    if (frame->sp < m->sp) {
+        m->stack[frame->sp+1] = m->stack[m->sp+1];
+
+        m->stack[frame->sp+2] = m->stack[m->sp];
+
+
+
+        m->sp = frame->sp+2;
+    }
+ */
 
     if (frame->block->block_type == 0x00) {
         /* Function, set pc to return address */
@@ -1296,7 +1289,7 @@ case 0x3e:
             case 0x59: c = (int64_t)d >= (int64_t)e; break;  /* i64.ge_s */
             case 0x5a: c = d >= e; break;  /* i64.ge_u */
             }
-            stack[m->sp].value_type = I32;
+            stack[m->sp].value_type = I64;
             stack[m->sp].value.uint32 = c;
             continue;
 	case 0x5b:
@@ -1704,13 +1697,20 @@ void run_init_expr(Module *m, uint8_t type, uint32_t *pc) {
 
 /* Public API */
 
-uint32_t get_export_fidx(Module *m, char *name) {
+uint32_t get_export_fidx(Module *m, char *name, uint32_t name_len) {
     uint32_t f;
+
     /* Find name function index */
     for (f=0; f<m->function_count; f++) {
         char *fname = m->functions[f].export_name;
-        if (!fname) { continue; }
-        if (strncmp(name, fname, 1024) == 0) {
+        if (!fname) {
+            continue;
+        }
+        if (name_len != m->functions[f].name_len) {
+            continue;
+        }
+
+        if (memcmp(name, fname, name_len) == 0) {
             return f;
         }
     }
@@ -2036,7 +2036,8 @@ uint32_t id;
             wa_warn("Parsing Export(7) section (length: 0x%x)\n", slen);
             export_count = read_LEB(bytes, &pos, 32);
             for (e=0; e<export_count; e++) {
-                char *name = read_string(bytes, &pos, NULL);
+                uint32_t name_len = 0;
+                char *name = read_string(bytes, &pos, &name_len);
 
                 uint32_t kind = bytes[pos++];
                 uint32_t index = read_LEB(bytes, &pos, 32);
@@ -2047,6 +2048,7 @@ uint32_t id;
                     continue;
                 }
                 m->functions[index].export_name = name;
+                m->functions[index].name_len = name_len+1;
                 wa_debug("  export: %s (0x%x)\n", name, index);
             }
             break;

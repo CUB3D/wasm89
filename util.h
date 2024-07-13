@@ -81,7 +81,7 @@ static uint32_t read_uint32(uint8_t *bytes, uint32_t *pos) {
  if result_len is not NULL, then it will be set to the string length*/
 static char *read_string(uint8_t *bytes, uint32_t *pos, uint32_t *result_len) {
     uint32_t str_len = read_LEB(bytes, pos, 32);
-    char * str = malloc(str_len+1);
+    char * str = (char*)calloc(str_len+1, 1);
     memcpy(str, bytes+*pos, str_len);
     str[str_len] = '\0';
     *pos += str_len;
@@ -145,6 +145,14 @@ static int _signbit(double x) {
     } u;
     u.d =  x;
     return u.u64 >> 63;
+}
+
+static uint32_t u32_max(uint32_t a, uint32_t b) {
+    return a>b?a:b;
+}
+
+static uint32_t u32_min(uint32_t a, uint32_t b) {
+    return a<b?a:b;
 }
 
 static double _fmax(double a, double b) {
