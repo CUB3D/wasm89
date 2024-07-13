@@ -155,23 +155,23 @@ static uint32_t u32_min(uint32_t a, uint32_t b) {
     return a<b?a:b;
 }
 
-static double _fmax(double a, double b) {
-    return a > b ? a : b;
-}
+#ifndef isnan
+static int isnan(double x) { return (x != x); }
+#endif
 
-static double _fmin(double a, double b) {
-    return a < b ? a : b;
-}
 
 static double wa_fmax(double a, double b) {
-    double c = _fmax(a, b);
-    if (c==0 && a==b) { return _signbit(a) ? b : a; }
-    return c;
+    if (isnan(a)) return a;
+    if (isnan(b)) return b;
+    if (_signbit(a) != _signbit(b)) return _signbit(a) ? b : a;
+    return a > b ? a : b;
 }
 static double wa_fmin(double a, double b) {
-    double c = _fmin(a, b);
-    if (c==0 && a==b) { return _signbit(a) ? a : b; }
-    return c;
+    if (isnan(a)) return a;
+    if (isnan(b)) return b;
+    if (_signbit(a) != _signbit(b)) return _signbit(a) ? a : b;
+
+    return a < b ? a : b;
 }
 bool should_trace(void);
 

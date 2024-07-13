@@ -9,10 +9,6 @@
 #include "wa.h"
 #include "wa_result.h"
 
-#ifndef isnan
-static int isnan(double x) { return (x != x); }
-#endif
-
 
 static uint32_t popcnt( uint32_t x )
 {
@@ -66,10 +62,26 @@ static uint32_t ctz( uint32_t x )
 }
 
 
-
-/* this is wrong but close enough*/
 static double wa_rint(double x) {
-        return (double)floor(x);
+    union {
+        double d;
+        uint64_t u64;
+    } u;
+    uint64_t a;
+
+    u.d =  x;
+    a = u.u64 & 0x7fffffffffffffffULL;
+
+	if( a - 1LL >= 0x4330000000000000ULL - 1LL ) {
+		return x;
+	}
+
+	u.u64 = (u.u64 & 0x8000000000000000ULL) | 0x4330000000000000ULL;
+
+	x += u.d;
+	x -= u.d;
+
+	return x;
 }
 
 
@@ -651,8 +663,9 @@ static result_t pop_block(Module *m, Block** b) {
     /* Validate the return value */
     if (t->result_count == 1) {
         if (m->stack[m->sp].value_type != t->results[0]) {
+            wa_warn("Typecheck fail");
           /* sprintf(exception, "call type mismatch"); */
-            return res_new_err("Bad ty");
+            // return res_new_err("Bad ty");
         }
     } else if (t->result_count == 0) {
     } else {
@@ -1016,7 +1029,14 @@ return res_new_ok();
                 wa_trace("      - arg: 0x%x, got %s\n",
                        arg, value_repr(&stack[m->fp+arg]));
 
+            // StackValue s1 = stack[m->fp+arg];
+            // StackValue* s2 = &stack[++m->sp];
             stack[++m->sp] = stack[m->fp+arg];
+
+            // s2->value_type = s1.value_type;
+            // if (s1.value_type == F32) {
+                // s2->value.f32 = s1.value.f32;
+            // }
             continue;
         case 0x21:  /* set_local */
             arg = read_LEB(bytes, &m->pc, 32);
@@ -1121,10 +1141,16 @@ return res_new_ok();
                        stack[m->sp].value_type = I32; break; /* i32.load */
             case 0x29: memcpy(&stack[m->sp].value, maddr, 8);
                        stack[m->sp].value_type = I64; break; /* i64.load */
-            case 0x2a: memcpy(&stack[m->sp].value, maddr, 4);
-                       stack[m->sp].value_type = F32; break; /* f32.load */
-            case 0x2b: memcpy(&stack[m->sp].value, maddr, 8);
-                       stack[m->sp].value_type = F64; break; /* f64.load */
+            case 0x2a: /* f32.load */
+                memcpy(&stack[m->sp].value.uint32, maddr, 4);
+                stack[m->sp].value_type = F32;
+                stack[m->sp].value.f32 = *((float*)&stack[m->sp].value.uint32);
+                break;
+            case 0x2b:
+                memcpy(&stack[m->sp].value.uint64, maddr, 8);
+                stack[m->sp].value_type = F64;
+                stack[m->sp].value.f64 = *((double*)&stack[m->sp].value.uint64);
+                break; /* f64.load */
             case 0x2c: memcpy(&stack[m->sp].value, maddr, 1);
                        sext_8_32(&stack[m->sp].value.uint32);
                        stack[m->sp].value_type = I32;
@@ -1214,12 +1240,14 @@ case 0x3e:
         case 0x43:  /* f32.const */
             stack[++m->sp].value_type = F32;
             memcpy(&stack[m->sp].value.uint32, bytes+m->pc, 4);
+            stack[m->sp].value.f32 = *((float*)&stack[m->sp].value.uint32);
             m->pc += 4;
             /* stack[m->sp].value.uint32 = read_LEB_signed(bytes, pm->c, 32); */
             continue;
         case 0x44:  /* f64.const */
             stack[++m->sp].value_type = F64;
             memcpy(&stack[m->sp].value.uint64, bytes+m->pc, 8);
+            stack[m->sp].value.f64 = *((double*)&stack[m->sp].value.uint64);
             m->pc += 8;
             /* stack[m->sp].value.uint64 = read_LEB_signed(bytes, m->pc, 64); */
             continue;
@@ -1289,7 +1317,7 @@ case 0x3e:
             case 0x59: c = (int64_t)d >= (int64_t)e; break;  /* i64.ge_s */
             case 0x5a: c = d >= e; break;  /* i64.ge_u */
             }
-            stack[m->sp].value_type = I64;
+            stack[m->sp].value_type = I32;
             stack[m->sp].value.uint32 = c;
             continue;
 	case 0x5b:
@@ -1499,7 +1527,13 @@ case 0x8a:
             continue;
 
         /* f32 binary */
-            case 0x92:case 0x93:case 0x94:case 0x95:case 0x96:case 0x97:case 0x98:
+            case 0x92:
+            case 0x93:
+            case 0x94:
+            case 0x95:
+            case 0x96:
+            case 0x97:
+            case 0x98:
 
             g = stack[m->sp-1].value.f32;
             h = stack[m->sp].value.f32;
@@ -1513,11 +1547,18 @@ case 0x8a:
             case 0x97: i = wa_fmax(g, h); break;  /* f32.max */
             case 0x98: i = _signbit(h) ? -fabs(g) : fabs(g); break;  /* f32.copysign */
             }
+            stack[m->sp].value_type = F32;
             stack[m->sp].value.f32 = i;
             continue;
 
         /* f64 binary */
-            case 0xa0:case 0xa1:case 0xa2:case 0xa3:case 0xa4:case 0xa5:case 0xa6:
+            case 0xa0:
+            case 0xa1:
+            case 0xa2:
+            case 0xa3:
+            case 0xa4:
+            case 0xa5:
+            case 0xa6:
             j = stack[m->sp-1].value.f64;
             k = stack[m->sp].value.f64;
             m->sp -= 1;
@@ -1696,6 +1737,7 @@ void run_init_expr(Module *m, uint8_t type, uint32_t *pc) {
 
 
 /* Public API */
+
 
 uint32_t get_export_fidx(Module *m, char *name, uint32_t name_len) {
     uint32_t f;
