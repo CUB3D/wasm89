@@ -286,12 +286,12 @@ macro_rules! test {
 mod core_test {
     test! {
         [address, "address"],
-        // [align, "align"],
+        [align, "align"],
         // [binary, "binary"], // t
         // [binary_leb128, "binary_leb128"],
         // [block, "block"], //b
         // [br, "br"], // b
-        // [br_if, "br_if"],
+        [br_if, "br_if"],
         // [br_table, "br_table"], //t
         // [bulk, "bulk"], // t
         // [call, "call"], //b
@@ -302,7 +302,7 @@ mod core_test {
         // [custom, "custom"], //t
         // [data, "data"], //i
         // [elem, "elem"], //e
-        // [endianness, "endianness"],
+        [endianness, "endianness"],
         // [exports, "exports"],
         [f32, "f32"],
         [f32_bitwise, "f32_bitwise"],
@@ -312,9 +312,9 @@ mod core_test {
         [f64_cmp, "f64_cmp"],
         // [fac, "fac"],
         // [float_exprs, "float_exprs"],
-        // [float_literals, "float_literals"],
+        [float_literals, "float_literals"],
         // [float_memory, "float_memory"],
-        // [float_misc, "float_misc"],
+        [float_misc, "float_misc"],
         [forward, "forward"],
         // [func, "func"],//e
         [func_ptrs, "func_ptrs"],
@@ -330,7 +330,7 @@ mod core_test {
         [left_to_right, "left-to-right"],
         // [linking, "linking"],
         [load, "load"],
-        // [local_get, "local_get"],
+        [local_get, "local_get"],
         // [local_set, "local_set"],
         // [local_tee, "local_tee"],
         // [loop_, "loop"], //b
