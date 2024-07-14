@@ -310,7 +310,7 @@ mod core_test {
         [f64, "f64"],
         [f64_bitwise, "f64_bitwise"],
         [f64_cmp, "f64_cmp"],
-        // [fac, "fac"],
+        // [fac, "fac"], // block
         // [float_exprs, "float_exprs"],
         [float_literals, "float_literals"],
         // [float_memory, "float_memory"],
@@ -331,7 +331,7 @@ mod core_test {
         // [linking, "linking"],
         [load, "load"],
         [local_get, "local_get"],
-        // [local_set, "local_set"],
+        [local_set, "local_set"],
         // [local_tee, "local_tee"],
         // [loop_, "loop"], //b
         // [memory, "memory"],
@@ -345,10 +345,10 @@ mod core_test {
         [names, "names"],
         [nop, "nop"],
         [obsolete_keywords, "obsolete-keywords"],
-        // [ref_func, "ref_func"],
+        // [ref_func, "ref_func"], // e
         // [ref_is_null, "ref_is_null"],
         // [ref_null, "ref_null"],
-        // [return_, "return_"],
+        [return_, "return"],
         // [select, "select"],
         [skip_stack_guard_page, "skip-stack-guard-page"],
         [stack, "stack"],
@@ -444,26 +444,8 @@ pub fn run_test(testset: &'static str) {
                     A::Invoke { field, args } => {
                         println!("field {testset}:{field}::{line}");
 
-                        // if line == 19 {
-                        //     continue;
-                        // }
 
-                        if field.contains("multi") {
-                            println!("Skip multi");
-                            continue;
-                        }
-
-                        if field.contains("add64_u_with_carry") {
-                            println!("Skip multi");
-                            continue;
-                        }
-
-                        if field.contains("type-f64-f64-value") {
-                            println!("Skip multi");
-                            continue;
-                        }
-
-                        if field.contains("as-return-values") {
+                        if field == "write" && line == 137 {
                             println!("Skip multi");
                             continue;
                         }
@@ -475,14 +457,8 @@ pub fn run_test(testset: &'static str) {
                             continue;
                         }
 
-                        // unsafe {
-                        //    m.as_mut().unwrap().fp = m.as_mut().unwrap().sp.wrapping_sub(args.len() as u32).wrapping_add(1);
-                        // }
                         for a in &args {
                             match a {
-                                // Arg::F32 { value} =>{
-                                // pf(m, value.parse::<f32>().unwrap())
-                                // },
                                 _ =>
                                 unsafe {
                                 let sp = m.as_mut().unwrap().sp.wrapping_add(1);
@@ -491,12 +467,6 @@ pub fn run_test(testset: &'static str) {
                                 }
                             }
                         }
-
-                        // unsafe {
-                        //     let sp = m.as_mut().unwrap().sp.wrapping_add(1);
-                        //     m.as_mut().unwrap().stack[sp as usize] = Arg::I32 { value: "414141".to_string()}.sv();
-                        //     m.as_mut().unwrap().sp = sp;
-                        // }
 
                         let mut fs = field.as_bytes().to_vec();
                         fs.push(0);
@@ -519,16 +489,6 @@ pub fn run_test(testset: &'static str) {
                                 m.as_mut().unwrap().sp = sp.wrapping_sub(1);
                                 res
                             };
-
-                            // if let SafeSV::F32(_) = res.safe() {
-                            //     println!("f32 detected");
-                            //     continue;
-                            // }
-
-                            // if let SafeSV::F64(_) = res.safe() {
-                            //     println!("f64 detected");
-                            //     continue;
-                            // }
 
                             let res_s = res.safe();
                             let exp_s = exp.sv().safe();
