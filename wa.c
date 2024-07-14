@@ -1137,8 +1137,10 @@ return res_new_ok();
             }
             stack[++m->sp].value.uint64 = 0; /* initialize to 0 */
             switch (opcode) {
-            case 0x28: memcpy(&stack[m->sp].value, maddr, 4);
-                       stack[m->sp].value_type = I32; break; /* i32.load */
+            case 0x28:
+                memcpy(&stack[m->sp].value.uint32, maddr, 4);
+                stack[m->sp].value_type = I32;
+                break; /* i32.load */
             case 0x29: memcpy(&stack[m->sp].value, maddr, 8);
                        stack[m->sp].value_type = I64; break; /* i64.load */
             case 0x2a: /* f32.load */
