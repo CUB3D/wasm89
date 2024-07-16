@@ -285,94 +285,77 @@ macro_rules! test {
 }
 
 //find . -name \*.wast | xargs -I{} mkdir {}_
-//find . -name \*.wast | xargs -I{} wast2json {} -o {}_/{}.json
+//find . -name \*.wast | xargs -I{} wast2json wast2json --disable-saturating-float-to-int --disable-sign-extension --disable-simd  --disable-multi-value --disable-bulk-memory --disable-reference-types --debug-names {} -o {}_/{}.json
 mod core_test {
     test! {
         [address, "address"],
         [align, "align"],
         // [binary, "binary"], // t
-        // [binary_leb128, "binary_leb128"],
-        // [block, "block"], //b
-        // [br, "br"], // b
+        [binary_leb128, "binary-leb128"],
+        [block, "block"],
+        [br, "br"],
         [br_if, "br_if"],
         // [br_table, "br_table"], //t
-        // [bulk, "bulk"], // t
-        // [call, "call"], //b
-        // [call_indirect, "call_indirect"],
+        [break_drop, "break-drop"],
+        [call, "call"],
+        [call_indirect, "call_indirect"],
         [comments, "comments"],
         [const_, "const"],
-        // [conversions, "conversions"], // assert
+        [conversions, "conversions"],
         // [custom, "custom"], //t
-        // [data, "data"], //i
-        // [elem, "elem"], //e
+        // [data, "data"], //import
+        // [elem, "elem"], // import
         [endianness, "endianness"],
-        // [exports, "exports"],
+        // [exports, "exports"], // bug
         [f32, "f32"],
         [f32_bitwise, "f32_bitwise"],
         [f32_cmp, "f32_cmp"],
         [f64, "f64"],
         [f64_bitwise, "f64_bitwise"],
         [f64_cmp, "f64_cmp"],
-        // [fac, "fac"], // block
+        [fac, "fac"],
         [float_exprs, "float_exprs"],
         [float_literals, "float_literals"],
         [float_memory, "float_memory"],
         [float_misc, "float_misc"],
         [forward, "forward"],
-        // [func, "func"],//malloc f
+        [func, "func"],
         [func_ptrs, "func_ptrs"],
-        // [global, "global"], //externref
+        [globals, "globals"],
         [i32_, "i32"],
         [i64_, "i64"],
-        // [if_, "if"],
-        // [imports, "imports"],
+        [if_, "if"],
+        // [imports, "imports"], // bug
         [inline_module, "inline-module"],
         [int_exprs, "int_exprs"],
         [int_literals, "int_literals"],
         [labels, "labels"],
         [left_to_right, "left-to-right"],
-        // [linking, "linking"],
+        [linking, "linking"], // bug
         [load, "load"],
         [local_get, "local_get"],
         [local_set, "local_set"],
-        // [local_tee, "local_tee"],
-        // [loop_, "loop"], //b
-        // [memory, "memory"],
-        // [memory_copy, "memory_copy"],
-        // [memory_fill, "memory_fill"],
-        // [memory_grow, "memory_grow"],
-        // [memory_init, "memory_init"],
-        // [memory_redundancy, "memory_redundancy"],
+        [local_tee, "local_tee"],
+        [loop_, "loop"],
+        [memory, "memory"],
+        [memory_grow, "memory_grow"],
+        [memory_redundancy, "memory_redundancy"],
         [memory_size, "memory_size"],
         [memory_trap, "memory_trap"],
         [names, "names"],
         [nop, "nop"],
-        [obsolete_keywords, "obsolete-keywords"],
-        // [ref_func, "ref_func"], // e
-        // [ref_is_null, "ref_is_null"],
-        // [ref_null, "ref_null"],
         [return_, "return"],
-        // [select, "select"],
+        [select, "select"],
         [skip_stack_guard_page, "skip-stack-guard-page"],
         [stack, "stack"],
-        // [start, "start"], //e
+        [start, "start"],
         [store, "store"],
         [switch, "switch"],
-        // [table, "table"],//t
-        [table_sub, "table-sub"],
-        // [table_copy, "table_copy"], //t
-        // [table_fill, "table_fill"],//t
-        // [table_get, "table_get"], //t
-        // [table_grow, "table_grow"], //t
-        // [table_init, "table_init"], //t
-        // [table_set, "table_set"], //t
-        // [table_size, "table_size"], //t
-        // [token, "token"], //t
+        [token, "token"],
         [traps, "traps"],
         [type_, "type"],
         [unreachable, "unreachable"],
         [unreached_invalid, "unreached-invalid"],
-        [unreached_valid, "unreached-valid"],
         [unwind, "unwind"],
         [utf8_custom_section_id, "utf8-custom-section-id"],
         [utf8_import_field, "utf8-import-field"],
@@ -388,7 +371,7 @@ fn main() {
 
 
 pub fn run_test(testset: &'static str) {
-    let (load_module, get_export_fidx, invoke) = unsafe {
+    let (load_module, get_export_fidx, invoke, snap, snap_dest) = unsafe {
         let l = libc::dlopen(c"../bin/libwasm89.so".as_ptr(), libc::RTLD_NOW);
         assert_ne!(l, core::ptr::null_mut());
         let load_module = libc::dlsym(l, c"load_module".as_ptr());
@@ -402,9 +385,16 @@ pub fn run_test(testset: &'static str) {
         let invoke = libc::dlsym(l, c"invoke".as_ptr());
         assert_ne!(invoke, core::ptr::null_mut());
         let invoke = core::mem::transmute::<*mut libc::c_void, extern "C" fn(*mut Module, usize)->R>(invoke);
-        println!("{:x}", invoke as usize);
 
-        (load_module, get_export_fidx, invoke)
+        let snapshot = libc::dlsym(l, c"snapshot".as_ptr());
+        assert_ne!(snapshot, core::ptr::null_mut());
+        let snapshot = core::mem::transmute::<*mut libc::c_void, extern "C" fn(*mut Module)->*mut Module>(snapshot);
+
+        let snapshot_dest = libc::dlsym(l, c"snapshot_destroy".as_ptr());
+        assert_ne!(snapshot_dest, core::ptr::null_mut());
+        let snapshot_dest = core::mem::transmute::<*mut libc::c_void, extern "C" fn(*mut Module)>(snapshot_dest);
+
+        (load_module, get_export_fidx, invoke, snapshot, snapshot_dest)
     };
 
     // let testset = "i32";
@@ -412,10 +402,10 @@ pub fn run_test(testset: &'static str) {
     // let testset = "address";
 
     // let conf = PathBuf::from_str("res/const/const.json").unwrap();
-    let conf = PathBuf::from_str(&format!("res/{testset}.wast_/{testset}.wast.json")).unwrap();
+    let conf = PathBuf::from_str(&format!("res/wg-1.0/{testset}.wast_/{testset}.wast.json")).unwrap();
 
     // let t: T = serde_json::from_str(include_str!("../res/nop/nop.json")).unwrap();
-    let t: T = serde_json::from_str(&std::fs::read_to_string(&conf).unwrap()).unwrap();
+    let t: T = serde_json::from_str(&std::fs::read_to_string(&conf).expect(&format!("Failed to find {}", conf.display()))).unwrap();
     let mut m = core::ptr::null_mut();
     for c in t.commands {
         match c {
@@ -447,16 +437,24 @@ pub fn run_test(testset: &'static str) {
                     A::Invoke { field, args } => {
                         println!("field {testset}:{field}::{line}");
 
+                        // any error will leave the module in bad state
+                        //let m = snap(m);
+
 
                         if field == "write" && line == 137 {
                             println!("Skip multi");
+                            //snap_dest(m);
                             continue;
                         }
+                        // if field == "multi" {
+                        //     println!("Skip multi");
+                        //     continue;
 
                         //print!("{testset}:{field}... ");
 
                         if expected.len() > 1 {
                             println!("field {testset}:{field}::{line} >2 vals what");
+                            //snap_dest(m);
                             continue;
                         }
 
@@ -482,7 +480,16 @@ pub fn run_test(testset: &'static str) {
                         match r.safe_r() {
                             SafeR::Ok => {}
                             SafeR::Err(s) => panic!("{s}"),
-                            SafeR::ErrNest(s1, s2) => panic!("{s1:?} {s2:?}"),
+                            SafeR::ErrNest(s1, s2) => {
+                                if let SafeR::Err(ref x) = *s2 {
+                                    if x == "multi_return_not_supported" {
+                                        panic!("Skipping multi return func");
+                                        //snap_dest(m);
+                                        continue;
+                                    }
+                                }
+                                panic!("{s1:?} {s2:?}")
+                            },
                         }
 
                         if let Some(exp) = expected.first() {
@@ -499,27 +506,33 @@ pub fn run_test(testset: &'static str) {
                             if  res_s != exp_s  {
                                 if let (SafeSV::F32(a), SafeSV::F32(b)) = (res_s, exp_s) {
                                     if a.is_nan() && b.is_nan() {
+                                        //snap_dest(m);
                                         continue;
                                     }
                                 }
 
                                 if let (SafeSV::F64(a), SafeSV::F64(b)) = (res_s, exp_s) {
                                     if a.is_nan() && b.is_nan() {
+                                        //snap_dest(m);
                                         continue;
                                     }
                                 }
 
 
                                 if let (SafeSV::F64(a), SafeSV::F64(b)) = (res_s, exp_s) {
-                                    if (a - b).abs() < 20.0 {
-                                        println!("Allowing f64 with small diff");
+                                    let dif = (a - b).abs();
+                                    if dif < 20.0 {
+                                        println!("Allowing f64 with small diff {dif}");
+                                        //snap_dest(m);
                                         continue;
                                     }
                                 }
 
                                 if let (SafeSV::F32(a), SafeSV::F32(b)) = (res_s, exp_s) {
-                                    if (a - b).abs() < 20.0 {
-                                        println!("Allowing f64 with small diff");
+                                    let dif = (a - b).abs();
+                                    if  dif < 20.0 {
+                                        println!("Allowing f64 with small diff {dif}");
+                                        //snap_dest(m);
                                         continue;
                                     }
                                 }
@@ -538,6 +551,7 @@ pub fn run_test(testset: &'static str) {
                         } else {
                             println!("field {testset}:{field}::{line} not testing, no exp");
                         }
+                        //snap_dest(m);
                     }
                     A::Get { .. } => {}
                 }

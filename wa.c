@@ -660,12 +660,16 @@ static result_t pop_block(Module *m, Block** b) {
 
     m->fp = frame->fp; /* Restore frame pointer */
 
+    if (t->result_count > 1) {
+        return res_new_err("multi_return_not_supported");
+    }
+
     /* Validate the return value */
     if (t->result_count == 1) {
         if (m->stack[m->sp].value_type != t->results[0]) {
             wa_warn("Typecheck fail");
-          /* sprintf(exception, "call type mismatch"); */
-            // return res_new_err("Bad ty");
+          /* sprintf(exception, "call type mismatch");
+            // return res_new_err("Bad ty");*/
         }
     } else if (t->result_count == 0) {
     } else {
@@ -768,9 +772,41 @@ void setup_call(Module *m, uint32_t fidx) {
         m->stack[m->sp].value.uint64 = 0; /* Initialize whole union to 0 */
     }
 
+    // push locals again so that they don't overlap the frame (fixes local_tee:354)
+    for (lidx=0; lidx<func->local_count; lidx++) {
+        m->sp += 1;
+        m->stack[m->sp].value_type = func->locals[lidx];
+        m->stack[m->sp].value.uint64 = 0; /* Initialize whole union to 0 */
+    }
+
     /* Set program counter to start of function */
     m->pc = func->start_addr;
     return;
+}
+
+static result_t conv_f64(StackValue* sv, StackValue* out, bool sign) {
+    switch (sv->value_type) {
+        case F64:
+            out->value.f64 = sv->value.f64;
+            break;
+        case F32:
+            out->value.f64 = sv->value.f32;
+            break;
+        case I32:
+            out->value.f64 = sign ? (double)sv->value.int32 : (double)sv->value.uint32;
+            break;
+        case I64:
+        wa_warn("Conv %lld to f64, sign=%b, q=%d\n", sv->value.int64, sign, sizeof(uint64_t));
+            out->value.f64 = sign ? (double)sv->value.int64 : (double)sv->value.uint64;
+            wa_warn("res = %f\n", out->value.f64);
+
+            break;
+        default:
+            return res_new_err("Cant conv type");
+    }
+    out->value_type = F64;
+
+    return res_new_ok();
 }
 
 result_t interpret(Module *m) {
@@ -800,8 +836,12 @@ result_t interpret(Module *m) {
         m->pc += 1;
 
          if (should_trace()) {
-         dump_stacks(m);
-             fprintf(stderr, "    0x%x <0x%x/%s>\n", cur_pc, opcode, OPERATOR_INFO[opcode]);
+            const char* op_info = "BAD_OP";
+            dump_stacks(m);
+            if (opcode < 0xbf) {
+                op_info = OPERATOR_INFO[opcode];
+            }
+             fprintf(stderr, "    0x%x <0x%x/%s>\n", cur_pc, opcode, op_info);
          }
 
         switch (opcode) {
@@ -1029,14 +1069,7 @@ return res_new_ok();
                 wa_trace("      - arg: 0x%x, got %s\n",
                        arg, value_repr(&stack[m->fp+arg]));
 
-            // StackValue s1 = stack[m->fp+arg];
-            // StackValue* s2 = &stack[++m->sp];
             stack[++m->sp] = stack[m->fp+arg];
-
-            // s2->value_type = s1.value_type;
-            // if (s1.value_type == F32) {
-                // s2->value.f32 = s1.value.f32;
-            // }
             continue;
         case 0x21:  /* set_local */
             arg = read_LEB(bytes, &m->pc, 32);
@@ -1048,6 +1081,7 @@ return res_new_ok();
             continue;
         case 0x22:  /* tee_local */
             arg = read_LEB(bytes, &m->pc, 32);
+
             stack[m->fp+arg] = stack[m->sp];
 
                 wa_trace("      - arg: 0x%x, to %s\n",
@@ -1126,7 +1160,7 @@ return res_new_ok();
             if (maddr+LOAD_SIZE[opcode-0x28] > mem_end) {
                 overflow = true;
             }
-                wa_info("      - addr: 0x%x, offset: 0x%x, maddr: %p, mem_end: %p\n",
+                wa_trace("      - addr: 0x%x, offset: 0x%x, maddr: %p, mem_end: %p\n",
                  addr, offset, maddr, mem_end);
             if (!m->options.disable_memory_bounds) {
                 if (overflow) {
@@ -1670,10 +1704,20 @@ case 0x8a:
                    stack[m->sp].value_type = F64; break;  /* f64.convert_s/i32 */
         case 0xb8: stack[m->sp].value.f64 = stack[m->sp].value.uint32;
                    stack[m->sp].value_type = F64; break;  /* f64.convert_u/i32 */
-        case 0xb9: stack[m->sp].value.f64 = stack[m->sp].value.int64;
-                   stack[m->sp].value_type = F64; break;  /* f64.convert_s/i64 */
-        case 0xba: stack[m->sp].value.f64 = stack[m->sp].value.uint64;
-                   stack[m->sp].value_type = F64; break;  /* f64.convert_u/i64 */
+        case 0xb9:  /* f64.convert_s/i64 */
+            // stack[m->sp].value.f64 = stack[m->sp].value.uint64;
+            // stack[m->sp].value_type = F64;
+            res = conv_f64(&stack[m->sp], &stack[m->sp], true);
+            if(res_err(res)) {
+                res_new_nest(res, "Conv");
+            }
+            break;
+        case 0xba: /* f64.convert_u/i64 */
+            res = conv_f64(&stack[m->sp], &stack[m->sp], false);
+            if(res_err(res)) {
+                res_new_nest(res, "Conv");
+            }
+            break;
         case 0xbb: stack[m->sp].value.f64 = stack[m->sp].value.f32;
                    stack[m->sp].value_type = F64; break;  /* f64.promote/f32 */
 
@@ -1782,7 +1826,6 @@ uint32_t id;
     char  *sym;
 
     Block *func;
-    Table *tval;
     Memory *mval;
     Block *functions,*function;
 
@@ -1893,7 +1936,9 @@ uint32_t id;
                     (void)mutability; break;
                 }
 
-                sym = malloc(module_len + field_len + 5);
+                wa_warn("Import mod=%s f=%s\n", import_module, import_field);
+                sym = acalloc(module_len + field_len + 5, 1, "sym");
+
 
 /*
                 do {
@@ -1950,10 +1995,14 @@ uint32_t id;
 
                     func->func_ptr = ( void*(*)(void))val;
                     break;
-                case 0x01:  /* Table */
+                case 0x01:  /* Table */ {
+                    Table *tval = val;
+                    if(!tval) {
+                        wa_warn("no tval\n");
+                        return NULL;
+                    }
                     ASSERT(!m->table.entries,
                            "More than 1 table not supported\n");
-                    tval = val;
                     m->table.entries = val;
                     ASSERT(m->table.initial <= tval->maximum,
                         "Imported table is not large enough\n");
@@ -1963,14 +2012,16 @@ uint32_t id;
                     m->table.maximum = tval->maximum;
                     m->table.entries = tval->entries;
                     break;
+                }
                 case 0x02:  /* Memory */
-                    ASSERT(!m->memory.bytes,
-                           "More than 1 memory not supported\n");
+                    ASSERT(!m->memory.bytes, "More than 1 memory not supported\n");
                     mval = val;
-                    ASSERT(m->memory.initial <= mval->maximum,
-                        "Imported memory is not large enough\n");
-                    wa_warn("  setting memory pages: %d, max: %d, bytes: %p\n",
-                         mval->pages, mval->maximum, mval->bytes);
+                    if(!mval) {
+                        wa_warn("No mval");
+                        return NULL;
+                    }
+                    ASSERT(m->memory.initial <= mval->maximum, "Imported memory is not large enough\n");
+                    wa_warn("  setting memory pages: %d, max: %d, bytes: %p\n", mval->pages, mval->maximum, mval->bytes);
                     m->memory.pages = mval->pages;
                     m->memory.maximum = mval->maximum;
                     m->memory.bytes = mval->bytes;
@@ -2181,14 +2232,15 @@ uint32_t id;
                 function->local_count = 0;
                 for (l=0; l<local_count; l++) {
                     lecount = read_LEB(bytes, &pos, 32);
-                    function->local_count += lecount;
-                    tidx =  read_LEB(bytes, &pos, 7);
-                    (void)tidx; /* TODO: use tidx? */
+                    vt = read_LEB(bytes, &pos, 7);
+                    for (l=0; l<lecount; l++) {
+                        wa_warn("local[%d]\n", lidx);
+                        function->local_count++;
+                    }
                 }
                 function->locals = acalloc(function->local_count,
                                            sizeof(uint32_t),
                                            "function->locals");
-
                 /* Restore position and read the locals */
                 pos = save_pos;
                 lidx = 0;
@@ -2261,4 +2313,23 @@ result_t invoke(Module *mod, uint32_t fidx) {
     if (should_trace()) { dump_stacks(mod); }
 
     return result;
+}
+
+Module* snapshot(Module* m) {
+    Module* nm = calloc(1, sizeof(Module));
+    memcpy(nm, m, sizeof(Module));
+
+    nm->memory.bytes = acalloc(1,
+                            nm->memory.pages*PAGE_SIZE,
+                            "parse memory section\n");
+    if(nm->memory.pages > 0) {
+        memcpy(nm->memory.bytes, m->memory.bytes, nm->memory.pages*PAGE_SIZE);
+    }
+
+    return nm;
+}
+
+void snapshot_destroy(Module *m) {
+    free(m->memory.bytes);
+    free(m);
 }

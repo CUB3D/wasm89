@@ -176,6 +176,8 @@ result_t interpret(Module *m);
 extern uint32_t get_export_fidx(Module *m, char *name, uint32_t name_sz);
 extern Module *load_module(uint8_t *bytes, uint32_t byte_count, Options options);
 extern result_t invoke(Module *m, uint32_t fidx);
+extern Module *snapshot(Module* m);
+extern void snapshot_destroy(Module* m);
 
 #ifdef __cplusplus
 }

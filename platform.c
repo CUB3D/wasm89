@@ -1,3 +1,4 @@
+
 #include <stdlib.h>
 
 #include "fixes.h"
@@ -12,7 +13,7 @@ void *acalloc(size_t nmemb, size_t size, char *name)
     void *res = calloc(nmemb, size);
     if (nmemb * size == 0)
     {
-        wa_warn("acalloc: %s requests allocating 0 bytes.\n", name);
+        /* wa_warn("acalloc: %s requests allocating 0 bytes.\n", name);*/
     }
     else if (res == NULL)
     {
@@ -43,4 +44,3 @@ double fmax(double left, double right)
     { return (left < right) ? left : right; }
 
 double trunc(double d){ return (d>0) ? floor(d) : ceil(d) ; }
-

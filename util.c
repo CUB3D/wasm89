@@ -7,7 +7,7 @@
 
 #include "util.h"
 
-int log_level = 5;
+int log_level = 4;
 
 bool should_trace(void) {
     return log_level > 4;
