@@ -13,6 +13,7 @@ This is a port of [wac-esp](https://github.com/grassel/wac-esp) with the followi
 - Added `extern "C"` guards for use from c++
 - Added support for "Sign Extention Extension"
 - Add test environment
+- Passes a large amount of WG-1.0
 
 ### Compiler requirements:
 This currently requires the following non-standard features, pull requests to change this are welcome:
