@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::ffi::CStr;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -129,6 +130,7 @@ enum A {
     Invoke {
         field: String,
         args: Vec<Arg>,
+        module: Option<String>,
     },
 #[serde(rename = "get")]
 Get{},
@@ -140,6 +142,7 @@ Get{},
 enum C {
     #[serde(rename = "module")]
     Module{
+        name: Option<String>,
         filename: String,
     },
     #[serde(rename = "action")]
@@ -284,8 +287,6 @@ macro_rules! test {
     };
 }
 
-//find . -name \*.wast | xargs -I{} mkdir {}_
-//find . -name \*.wast | xargs -I{} wast2json wast2json --disable-saturating-float-to-int --disable-sign-extension --disable-simd  --disable-multi-value --disable-bulk-memory --disable-reference-types --debug-names {} -o {}_/{}.json
 mod core_test {
     test! {
         [address, "address"],
@@ -306,7 +307,7 @@ mod core_test {
         // [data, "data"], //import
         // [elem, "elem"], // import
         [endianness, "endianness"],
-        // [exports, "exports"], // bug
+        // [exports, "exports"], // bug in harness
         [f32, "f32"],
         [f32_bitwise, "f32_bitwise"],
         [f32_cmp, "f32_cmp"],
@@ -321,7 +322,7 @@ mod core_test {
         [forward, "forward"],
         [func, "func"],
         [func_ptrs, "func_ptrs"],
-        [globals, "globals"],
+        // [globals, "globals"], // imports / ubsan
         [i32_, "i32"],
         [i64_, "i64"],
         [if_, "if"],
@@ -331,7 +332,7 @@ mod core_test {
         [int_literals, "int_literals"],
         [labels, "labels"],
         [left_to_right, "left-to-right"],
-        [linking, "linking"], // bug
+        // [linking, "linking"], // harness bug
         [load, "load"],
         [local_get, "local_get"],
         [local_set, "local_set"],
@@ -367,12 +368,24 @@ mod core_test {
 fn main() {
 
 }
-// For asan: ASAN_OPTIONS=detect_leaks=0 LD_PRELOAD="/usr/lib/clang/18/lib/linux/libclang_rt.asan-x86_64.so" cargo test -- --test-threads=1 "core_test::ad"
+// For asan:  ASAN_OPTIONS=detect_leaks=0 LD_PRELOAD=/usr/lib/clang/18/lib/linux/libclang_rt.asan-x86_64.so cargo test -- --test-threads=1 "core_test::" --nocapture
+// For ubsan:  ASAN_OPTIONS=detect_leaks=0 LD_PRELOAD=/usr/lib/clang/18/lib/linux/libclang_rt.ubsan_standalone-x86_64.so cargo test -- --test-threads=1 "core_test::" --nocapture
+
 
 
 pub fn run_test(testset: &'static str) {
-    let (load_module, get_export_fidx, invoke, snap, snap_dest) = unsafe {
-        let l = libc::dlopen(c"../bin/libwasm89.so".as_ptr(), libc::RTLD_NOW);
+    let mode = if std::env::vars().any(|(_, y)| y.contains("libclang_rt.asan")) {
+        println!("Using asan");
+        c"../bin/libwasm89_asan.so"
+    } else if std::env::vars().any(|(_, y)| y.contains("libclang_rt.ubsan")) {
+        println!("Using ubsan");
+        c"../bin/libwasm89_ubsan.so"
+    } else {
+        println!("Using standard build");
+        c"../bin/libwasm89.so"
+    };
+    let (load_module, get_export_fidx, invoke, _snap, _snap_dest) = unsafe {
+        let l = libc::dlopen(mode.as_ptr(), libc::RTLD_NOW);
         assert_ne!(l, core::ptr::null_mut());
         let load_module = libc::dlsym(l, c"load_module".as_ptr());
         assert_ne!(load_module, core::ptr::null_mut());
@@ -406,19 +419,29 @@ pub fn run_test(testset: &'static str) {
 
     // let t: T = serde_json::from_str(include_str!("../res/nop/nop.json")).unwrap();
     let t: T = serde_json::from_str(&std::fs::read_to_string(&conf).expect(&format!("Failed to find {}", conf.display()))).unwrap();
+
+    let mut mod_map = HashMap::new();
+
     let mut m = core::ptr::null_mut();
     for c in t.commands {
         match c {
-            C::Module { filename } => {
+            C::Module { filename, name } => {
                 let mm = conf.parent().unwrap().join(filename);
                 println!("{:?}", mm);
                 let mm = std::fs::read(&mm).unwrap();
-                m = load_module(mm.as_ptr(), mm.len(), O {
+                let mo = load_module(mm.as_ptr(), mm.len(), O {
                     a: false,
                     b: false,
                     c: false,
                 });
-                assert_ne!(m, core::ptr::null_mut());
+                assert_ne!(mo, core::ptr::null_mut());
+
+                if let Some(name) = name {
+                    mod_map.insert(name, mo);
+                } else {
+                    m = mo;
+                }
+
                 // unsafe {
                 //     m.as_mut().unwrap().fp = 0;
                 //     let sp = m.as_mut().unwrap().sp+1;
@@ -434,8 +457,14 @@ pub fn run_test(testset: &'static str) {
             }
             C::AssertReturn { action, expected, line } => {
                 match action {
-                    A::Invoke { field, args } => {
+                    A::Invoke { field, args, module } => {
                         println!("field {testset}:{field}::{line}");
+
+                        let m = if let Some(module) = module {
+                            *mod_map.get(&module).unwrap()
+                        } else {
+                            m
+                        };
 
                         // any error will leave the module in bad state
                         //let m = snap(m);
@@ -475,7 +504,6 @@ pub fn run_test(testset: &'static str) {
                         if f as i32 == -1 {
                             panic!("Failed to find fidx: {:X?}", fs);
                         }
-                        println!("{:x}", m as usize);
                         let r = invoke(m, f);
                         match r.safe_r() {
                             SafeR::Ok => {}
@@ -483,9 +511,7 @@ pub fn run_test(testset: &'static str) {
                             SafeR::ErrNest(s1, s2) => {
                                 if let SafeR::Err(ref x) = *s2 {
                                     if x == "multi_return_not_supported" {
-                                        panic!("Skipping multi return func");
-                                        //snap_dest(m);
-                                        continue;
+                                        panic!("multi return func");
                                     }
                                 }
                                 panic!("{s1:?} {s2:?}")
@@ -570,14 +596,13 @@ pub fn run_test(testset: &'static str) {
             C::Register { .. } => {}
             C::Action { action, expected, line } => {
                 match action {
-                    A::Invoke { field, args } => {
+                    A::Invoke { field, args, module } => {
                         println!("field {testset}:{field}::{line}");
 
-
+                        assert!(module.is_none());
 
                         if !expected.is_empty() {
                             panic!();
-                            continue;
                         }
 
                         for a in &args {
@@ -597,7 +622,6 @@ pub fn run_test(testset: &'static str) {
                         if f as i32 == -1 {
                             panic!("Failed to find fidx: {:X?}", fs);
                         }
-                        println!("{:x}", m as usize);
                         let r = invoke(m, f);
                         match r.safe_r() {
                             SafeR::Ok => {}

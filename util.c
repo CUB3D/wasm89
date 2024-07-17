@@ -7,7 +7,11 @@
 
 #include "util.h"
 
-int log_level = 4;
+int log_level = 0;
+
+void wa_set_log_level(int ll) {
+    log_level = ll;
+}
 
 bool should_trace(void) {
     return log_level > 4;

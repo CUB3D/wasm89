@@ -402,7 +402,7 @@ static uint64_t get_type_mask(Type *type) {
     } else if (type->result_count == 3) {
         mask |= 0x80 - type->results[0] - type->results[1] - type->results[2];
     } else {
-        printf("ERR GTM\n");
+        wa_warn("ERR GTM\n");
     }
     mask = mask << 4;
     for(p=0; p<type->param_count; p++) {
@@ -772,7 +772,7 @@ void setup_call(Module *m, uint32_t fidx) {
         m->stack[m->sp].value.uint64 = 0; /* Initialize whole union to 0 */
     }
 
-    // push locals again so that they don't overlap the frame (fixes local_tee:354)
+    /* push locals again so that they don't overlap the frame (fixes local_tee:354) */
     for (lidx=0; lidx<func->local_count; lidx++) {
         m->sp += 1;
         m->stack[m->sp].value_type = func->locals[lidx];
@@ -1705,8 +1705,6 @@ case 0x8a:
         case 0xb8: stack[m->sp].value.f64 = stack[m->sp].value.uint32;
                    stack[m->sp].value_type = F64; break;  /* f64.convert_u/i32 */
         case 0xb9:  /* f64.convert_s/i64 */
-            // stack[m->sp].value.f64 = stack[m->sp].value.uint64;
-            // stack[m->sp].value_type = F64;
             res = conv_f64(&stack[m->sp], &stack[m->sp], true);
             if(res_err(res)) {
                 res_new_nest(res, "Conv");
@@ -2027,6 +2025,10 @@ uint32_t id;
                     m->memory.bytes = mval->bytes;
                     break;
                 case 0x03:  /* Global */
+                if(!val) {
+                    wa_warn("No val");
+                    return NULL;
+                }
                     m->global_count += 1;
                     m->globals = arecalloc(m->globals,
                                            m->global_count-1, m->global_count,
