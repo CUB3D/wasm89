@@ -25,8 +25,8 @@ result_t thunk_out(Module *m, uint32_t fidx) {
     }
 
     if (!func->func_ptr) {
-        char* msg;
-        asprintf(&msg, "No thunk for %s\n", func->import_field);
+        char* msg = calloc(1024+strlen(func->import_field), 1);
+        sprintf(msg, "No thunk for %s\n", func->import_field);
         return res_new_err(msg);
     }
 

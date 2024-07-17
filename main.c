@@ -1,4 +1,5 @@
 
+#include "fixes.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -98,8 +99,8 @@ Table     _env__table_ = {
 //uint32_t *_env__table_ = 0;
 uint32_t *_env__tableBase_;
 
-double    _global__NaN_         = NAN;
-double    _global__Infinity_    = INFINITY;
+/*double    _global__NaN_         = NAN;*/
+/*double    _global__Infinity_    = INFINITY;*/
 
 uint32_t **_env__DYNAMICTOP_PTR_;
 uint32_t *_env__tempDoublePtr_;
@@ -140,13 +141,18 @@ void init_wac_eps(void) {
 // Command line
 
 int main(int argc, char **argv) {
-    char     *mod_path;
+    char     *mod_path = NULL;
     int       fidx = 0;
     result_t res;
     uint8_t  *bytes = NULL;
     int       byte_count;
     Options opts;
     Module* m;
+    FILE* f;
+
+    opts.disable_memory_bounds = false;
+    opts.dlsym_trim_underscore = false;
+    opts.mangle_table_index = false;
 
 
     //init_wac_eps();
@@ -157,7 +163,7 @@ int main(int argc, char **argv) {
     // bytes =  wasi_test_wasm;
     // byte_count =  wasi_test_wasm_len;
 
-FILE * f = fopen ("/home/cub3d/wabt/nop.0.wasm", "rb");
+f = fopen ("/home/cub3d/wabt/nop.0.wasm", "rb");
 
 if (f)
 {
@@ -167,7 +173,7 @@ if (f)
   bytes = malloc (byte_count);
   if (bytes)
   {
-    int r = fread (bytes, 1, byte_count, f);
+    (void)fread (bytes, 1, byte_count, f);
   }
   fclose (f);
 }

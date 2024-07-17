@@ -196,9 +196,9 @@ enum C {
 
 #[repr(C)]
 struct O {
-    a: bool,
-    b: bool,
-    c: bool,
+    disable_memory_bounds: bool,
+    mangle_table_index: bool,
+    dlsym_trim_underscore: bool,
 }
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum SafeSV {
@@ -339,7 +339,7 @@ mod core_test {
         [local_tee, "local_tee"],
         [loop_, "loop"],
         [memory, "memory"],
-        [memory_grow, "memory_grow"],
+        [memory_grow, "memory_grow"], // note: fails under ubsan when f32_cmp is enabled, but not under scudo or asan and not due to a *san error?
         [memory_redundancy, "memory_redundancy"],
         [memory_size, "memory_size"],
         [memory_trap, "memory_trap"],
@@ -430,9 +430,9 @@ pub fn run_test(testset: &'static str) {
                 println!("{:?}", mm);
                 let mm = std::fs::read(&mm).unwrap();
                 let mo = load_module(mm.as_ptr(), mm.len(), O {
-                    a: false,
-                    b: false,
-                    c: false,
+                    disable_memory_bounds: false,
+                    mangle_table_index: false,
+                    dlsym_trim_underscore: false,
                 });
                 assert_ne!(mo, core::ptr::null_mut());
 

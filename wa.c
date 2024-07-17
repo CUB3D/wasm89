@@ -9,6 +9,78 @@
 #include "wa.h"
 #include "wa_result.h"
 
+/* Maths */
+
+/* Based on: http://stackoverflow.com/a/776523/471795 */
+static uint32_t rotl32(uint32_t n, unsigned int c) {
+  const unsigned int mask = (CHAR_BIT*sizeof(n)-1);
+  c = c % 32;
+  c &= mask;
+  return (n<<c) | (n>>( (-c)&mask ));
+}
+
+static uint32_t rotr32(uint32_t n, unsigned int c) {
+  const unsigned int mask = (CHAR_BIT*sizeof(n)-1);
+  c = c % 32;
+  c &= mask;
+  return (n>>c) | (n<<( (-c)&mask ));
+}
+
+static uint64_t rotl64(uint64_t n, unsigned int c) {
+  const unsigned int mask = (CHAR_BIT*sizeof(n)-1);
+  c = c % 64;
+  c &= mask;
+  return (n<<c) | (n>>( (-c)&mask ));
+}
+
+static uint64_t rotr64(uint64_t n, unsigned int c) {
+  const unsigned int mask = (CHAR_BIT*sizeof(n)-1);
+  c = c % 64;
+  c &= mask;
+  return (n>>c) | (n<<( (-c)&mask ));
+}
+
+static int wa_isnan(double x) { return (x != x); }
+
+static int _signbit(double x) {
+    union {
+        double d;
+        uint64_t u64;
+    } u;
+    u.d =  x;
+    return u.u64 >> 63;
+}
+
+static double wa_fmax(double a, double b) {
+    if (wa_isnan(a)) return a;
+    if (wa_isnan(b)) return b;
+    if (_signbit(a) != _signbit(b)) return _signbit(a) ? b : a;
+    return a > b ? a : b;
+}
+static double wa_fmin(double a, double b) {
+    if (wa_isnan(a)) return a;
+    if (wa_isnan(b)) return b;
+    if (_signbit(a) != _signbit(b)) return _signbit(a) ? a : b;
+
+    return a < b ? a : b;
+}
+
+/* Inplace sign extend */
+static void sext_8_32(uint32_t *val) {
+    if (*val & 0x80) { *val = *val | 0xffffff00; }
+}
+static void sext_16_32(uint32_t *val) {
+    if (*val & 0x8000) { *val = *val | 0xffff0000; }
+}
+static void sext_8_64(uint64_t *val) {
+    if (*val & 0x80) { *val = *val | 0xffffffffffffff00; }
+}
+static void sext_16_64(uint64_t *val) {
+    if (*val & 0x8000) { *val = *val | 0xffffffffffff0000; }
+}
+static void sext_32_64(uint64_t *val) {
+    if (*val & 0x80000000) { *val = *val | 0xffffffff00000000; }
+}
 
 static uint32_t popcnt( uint32_t x )
 {
@@ -82,6 +154,61 @@ static double wa_rint(double x) {
 	x -= u.d;
 
 	return x;
+}
+
+/* type readers */
+
+
+static uint64_t read_LEB_(uint8_t *bytes, uint32_t *pos, uint32_t maxbits, bool sign) {
+    uint64_t result = 0;
+    uint32_t shift = 0;
+    uint32_t bcnt = 0;
+    uint32_t startpos = *pos;
+    uint64_t  byte;
+
+    while (true) {
+        byte = bytes[*pos];
+        *pos += 1;
+        result |= ((byte & 0x7f)<<shift);
+        shift += 7;
+        if ((byte & 0x80) == 0) {
+            break;
+        }
+        bcnt += 1;
+        if (bcnt > (maxbits + 7 - 1) / 7) {
+            FATAL("Unsigned LEB at byte %d overflow", startpos);
+        }
+    }
+    if (sign && (shift < maxbits) && (byte & 0x40)) {
+        /* Sign extend */
+        result |= - (1 << shift);
+    }
+    return result;
+}
+
+static uint64_t read_LEB(uint8_t *bytes, uint32_t *pos, uint32_t maxbits) {
+    return read_LEB_(bytes, pos, maxbits, false);
+}
+
+static uint64_t read_LEB_signed(uint8_t *bytes, uint32_t *pos, uint32_t maxbits) {
+    return read_LEB_(bytes, pos, maxbits, true);
+}
+
+static uint32_t read_uint32(uint8_t *bytes, uint32_t *pos) {
+    *pos += 4;
+    return ((uint32_t *) (bytes+*pos-4))[0];
+}
+
+/* Reads a string from the bytes array at pos that starts with a LEB length
+ if result_len is not NULL, then it will be set to the string length*/
+static char *read_string(uint8_t *bytes, uint32_t *pos, uint32_t *result_len) {
+    uint32_t str_len = read_LEB(bytes, pos, 32);
+    char * str = (char*)calloc(str_len+1, 1);
+    memcpy(str, bytes+*pos, str_len);
+    str[str_len] = '\0';
+    *pos += str_len;
+    if (result_len) { *result_len = str_len; }
+    return str;
 }
 
 
@@ -939,7 +1066,8 @@ return res_new_ok();
             if (count > BR_TABLE_SIZE) {
                 /* TODO: check this prior to runtime */
                 result_t err;
-                asprintf(&err.msg, "br_table size %d exceeds max %d\n", count, BR_TABLE_SIZE);
+                err.msg = calloc(1024, 1);
+                sprintf(err.msg, "br_table size %d exceeds max %d\n", count, BR_TABLE_SIZE);
                 return err;
             }
             for(ii=0; ii<count; ii++) {
@@ -1006,7 +1134,8 @@ return res_new_ok();
             }
             if (val >= m->table.maximum) {
                 result_t err;
-                asprintf(&err.msg, "undefined element 0x%x (max: 0x%x) in table", val, m->table.maximum);
+                err.msg = calloc(1024, 1);
+                sprintf(err.msg, "undefined element 0x%x (max: 0x%x) in table", val, m->table.maximum);
                 return err;
             }
 
@@ -1614,7 +1743,7 @@ case 0x8a:
         /* case 0xa7 ... 0xbb: */
         case 0xa7: stack[m->sp].value.uint64 &= 0x00000000ffffffff;
                    stack[m->sp].value_type = I32; break;  /* i32.wrap/i64 */
-        case 0xa8: if (isnan(stack[m->sp].value.f32)) {
+        case 0xa8: if (wa_isnan(stack[m->sp].value.f32)) {
             return res_new_err("invalid conversion to integer");
                    } else if (stack[m->sp].value.f32 >= (float)INT32_MAX ||
                               stack[m->sp].value.f32 < (float)INT32_MIN) {
@@ -1622,7 +1751,7 @@ case 0x8a:
                    }
                    stack[m->sp].value.int32 = stack[m->sp].value.f32;
                    stack[m->sp].value_type = I32; break;  /* i32.trunc_s/f32 */
-        case 0xa9: if (isnan(stack[m->sp].value.f32)) {
+        case 0xa9: if (wa_isnan(stack[m->sp].value.f32)) {
             return res_new_err("invalid conversion to integer");
                    } else if (stack[m->sp].value.f32 >= (float)UINT32_MAX ||
                               stack[m->sp].value.f32 <= -1) {
@@ -1630,7 +1759,7 @@ case 0x8a:
                    }
                    stack[m->sp].value.uint32 = stack[m->sp].value.f32;
                    stack[m->sp].value_type = I32; break;  /* i32.trunc_u/f32 */
-        case 0xaa: if (isnan(stack[m->sp].value.f64)) {
+        case 0xaa: if (wa_isnan(stack[m->sp].value.f64)) {
             return res_new_err("invalid conversion to integer");
                    } else if (stack[m->sp].value.f64 > (double)INT32_MAX ||
                               stack[m->sp].value.f64 < (double)INT32_MIN) {
@@ -1638,7 +1767,7 @@ case 0x8a:
                    }
                    stack[m->sp].value.int32 = stack[m->sp].value.f64;
                    stack[m->sp].value_type = I32; break;  /* i32.trunc_s/f64 */
-        case 0xab: if (isnan(stack[m->sp].value.f64)) {
+        case 0xab: if (wa_isnan(stack[m->sp].value.f64)) {
             return res_new_err("invalid conversion to integer");
                    } else if (stack[m->sp].value.f64 > UINT32_MAX ||
                               stack[m->sp].value.f64 <= -1) {
@@ -1647,7 +1776,6 @@ case 0x8a:
                    stack[m->sp].value.uint32 = stack[m->sp].value.f64;
                    stack[m->sp].value_type = I32; break;  /* i32.trunc_u/f64 */
         case 0xac:{ /* i64.extend_s/i32 */
-		int og = stack[m->sp].value.uint32;
 		stack[m->sp].value.uint64 = stack[m->sp].value.uint32;
                 sext_32_64(&stack[m->sp].value.uint64);
                 stack[m->sp].value_type = I64;
@@ -1658,7 +1786,7 @@ case 0x8a:
                 stack[m->sp].value_type = I64;
 		break;  /* i64.extend_u/i32 */
    	}
-        case 0xae: if (isnan(stack[m->sp].value.f32)) {
+        case 0xae: if (wa_isnan(stack[m->sp].value.f32)) {
             return res_new_err("invalid conversion to integer");
                    } else if (stack[m->sp].value.f32 >= (float)INT64_MAX ||
                               stack[m->sp].value.f32 < (float)INT64_MIN) {
@@ -1666,7 +1794,7 @@ case 0x8a:
                    }
                    stack[m->sp].value.int64 = stack[m->sp].value.f32;
                    stack[m->sp].value_type = I64; break;  /* i64.trunc_s/f32 */
-        case 0xaf: if (isnan(stack[m->sp].value.f32)) {
+        case 0xaf: if (wa_isnan(stack[m->sp].value.f32)) {
             return res_new_err("invalid conversion to integer");
                    } else if (stack[m->sp].value.f32 >= (float)UINT64_MAX ||
                               stack[m->sp].value.f32 <= -1) {
@@ -1674,7 +1802,7 @@ case 0x8a:
                    }
                    stack[m->sp].value.uint64 = stack[m->sp].value.f32;
                    stack[m->sp].value_type = I64; break;  /* i64.trunc_u/f32 */
-        case 0xb0: if (isnan(stack[m->sp].value.f64)) {
+        case 0xb0: if (wa_isnan(stack[m->sp].value.f64)) {
             return res_new_err("invalid conversion to integer");
                    } else if (stack[m->sp].value.f64 >= (double)INT64_MAX ||
                               stack[m->sp].value.f64 < (double) INT64_MIN) {
@@ -1682,7 +1810,7 @@ case 0x8a:
                    }
                    stack[m->sp].value.int64 = stack[m->sp].value.f64;
                    stack[m->sp].value_type = I64; break;  /* i64.trunc_s/f64 */
-        case 0xb1: if (isnan(stack[m->sp].value.f64)) {
+        case 0xb1: if (wa_isnan(stack[m->sp].value.f64)) {
             return res_new_err("invalid conversion to integer");
                    } else if (stack[m->sp].value.f64 >= (double)UINT64_MAX ||
                               stack[m->sp].value.f64 <= -1) {
@@ -1751,8 +1879,10 @@ case 0x8a:
         default:
         {
             result_t err;
-                asprintf(&err.msg, "unrecognized opcode 0x%x\n", opcode);
-                return err;}
+            err.msg = calloc(1024, 1);
+            sprintf(err.msg, "unrecognized opcode 0x%x\n", opcode);
+                return err;
+        }
         }
     }
     return res_new_err("Unreachable"); /* We shouldn't reach here */
@@ -1814,14 +1944,13 @@ uint32_t id;
  StackValue* glob;
   uint32_t memorysize;
    uint32_t tablesize;
-   uint32_t c,p,r,import_count,module_len,field_len,gidx,external_kind,type_index,fidx,f,table_count,tidx,memory_count,global_count,type,g,e,n,s,b,l,export_count,element_count,offset,num_elem,seg_count,size,body_count,body_size,payload_start,local_count,save_pos, lidx, lecount;
+   uint32_t c,p,r,import_count,module_len,field_len,gidx,external_kind,type_index,fidx,f,table_count,tidx,memory_count,global_count,g,e,n,s,b,l,export_count,element_count,offset,num_elem,seg_count,size,body_count,body_size,payload_start,local_count,save_pos, lidx, lecount;
    int start_pos;
    char* import_module,*import_field;
    uint8_t content_type,mutability,type1;
 
    void *val = NULL;
-    char *err;
-    char  *sym;
+    /*char  *sym;*/
 
     Block *func;
     Memory *mval;
@@ -1935,7 +2064,7 @@ uint32_t id;
                 }
 
                 wa_warn("Import mod=%s f=%s\n", import_module, import_field);
-                sym = acalloc(module_len + field_len + 5, 1, "sym");
+                /*sym = acalloc(module_len + field_len + 5, 1, "sym");*/
 
 
 /*

@@ -7,7 +7,7 @@
 
 #include "util.h"
 
-int log_level = 0;
+int log_level = 4;
 
 void wa_set_log_level(int ll) {
     log_level = ll;
