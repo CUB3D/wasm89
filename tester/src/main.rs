@@ -386,7 +386,7 @@ pub fn run_test(testset: &'static str) {
     };
     let (load_module, get_export_fidx, invoke, _snap, _snap_dest) = unsafe {
         let l = libc::dlopen(mode.as_ptr(), libc::RTLD_NOW);
-        assert_ne!(l, core::ptr::null_mut());
+        assert_ne!(l, core::ptr::null_mut(), "Failed to load lib, build it first");
         let load_module = libc::dlsym(l, c"load_module".as_ptr());
         assert_ne!(load_module, core::ptr::null_mut());
         let load_module = core::mem::transmute::<*mut libc::c_void, extern "C" fn(*const u8, usize, O)->*mut Module>(load_module);
