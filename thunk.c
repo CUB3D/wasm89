@@ -130,8 +130,18 @@ void (*setup_thunk_in(uint32_t fidx))(void) {
     uint32_t p;
     void (*f)(void) = NULL;
     Module* m = _wa_current_module_; /* TODO: global state, clean up somehow */
-    Block* func = &m->functions[fidx];
-    Type* type = func->type;
+    Block* func;
+    Type* type;
+
+    if (fidx >= m->function_count) {
+        return NULL;
+    }
+    func = &m->functions[fidx];
+    type = func->type;
+    if (m->csp + 1 >= CALLSTACK_SIZE ||
+        m->sp + (int)(type->param_count + func->local_count) >= STACK_SIZE) {
+        return NULL;
+    }
 
     /* Make space on the stack*/
     m->sp += type->param_count;
@@ -142,7 +152,9 @@ void (*setup_thunk_in(uint32_t fidx))(void) {
 
     /* Do normal function call setup. The fp will point to the start of stack
      elements that were just added above*/
-    setup_call(m, fidx);
+    if (res_err(setup_call(m, fidx))) {
+        return NULL;
+    }
 
     /* Set the type of the unset stack elements */
     for (p = 0; p < type->param_count; p++) {

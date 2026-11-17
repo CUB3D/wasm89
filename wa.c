@@ -805,6 +805,27 @@ static void find_blocks(Module* m) {
     }
 }
 
+#define STACK_POP_CHECK(m, x)                          \
+    if ((m)->sp < x) {                                 \
+        return res_new_err("operand stack overflow");  \
+    }
+#define STACK_PUSH_CHECK(m)                            \
+    if ((m)->sp + 1 >= STACK_SIZE) {                   \
+        return res_new_err("operand stack overflow");  \
+    }
+#define LOCAL_CHECK(m, idx)                                  \
+    if ((m)->fp < 0 || (int64_t)(m)->fp + (idx) > (m)->sp) { \
+        return res_new_err("local index oob");               \
+    }
+#define GLOBAL_CHECK(m, idx)                    \
+    if ((idx) >= (m)->global_count) {           \
+        return res_new_err("global index oob"); \
+    }
+#define BR_CHECK(m, depth)                          \
+    if ((depth) > (uint32_t)(m)->csp) {             \
+        return res_new_err("branch depth too big"); \
+    }
+
 /* Stack machine (byte code related functions) */
 
 static void push_block(Module* m, Block* block, int sp) {
@@ -829,6 +850,9 @@ static result_t pop_block(Module* m, Block** b) {
 
     /* Validate the return value */
     if (t->result_count == 1) {
+        if (m->sp < 0) {
+            return res_new_err("operand stack underflow");
+        }
         if (m->stack[m->sp].value_type != t->results[0]) {
             wa_warn("Typecheck fail");
             /* sprintf(exception, "call type mismatch");
@@ -905,11 +929,24 @@ static result_t pop_block(Module* m, Block** b) {
 /* Push params and locals on the stack and save a call frame on the call stack
  */
 /* Sets new pc value for the start of the function */
-void setup_call(Module* m, uint32_t fidx) {
+result_t setup_call(Module* m, uint32_t fidx) {
     uint32_t lidx;
     int p;
-    Block* func = &m->functions[fidx];
-    Type* type = func->type;
+    Block* func;
+    Type* type;
+
+    if (fidx >= m->function_count) {
+        return res_new_err("function index out of range");
+    }
+    func = &m->functions[fidx];
+    type = func->type;
+
+    if (m->csp + 1 >= CALLSTACK_SIZE) {
+        return res_new_err("call stack overflow");
+    }
+    if (m->sp + (int)func->local_count >= STACK_SIZE) {
+        return res_new_err("operand stack overflow");
+    }
 
     /* Push current frame on the call stack */
     push_block(m, func, m->sp - type->param_count);
@@ -937,7 +974,7 @@ void setup_call(Module* m, uint32_t fidx) {
 
     /* Set program counter to start of function */
     m->pc = func->start_addr;
-    return;
+    return res_new_ok();
 }
 
 static result_t conv_f64(StackValue* sv, StackValue* out, bool sign) {
@@ -969,7 +1006,7 @@ static result_t conv_f64(StackValue* sv, StackValue* out, bool sign) {
 }
 
 result_t interpret(Module* m) {
-    int ii;
+    uint32_t ii;
     uint32_t didx, prev_pages, delta;
     uint8_t* bytes = m->bytes;
     StackValue* stack = m->stack;
@@ -1011,14 +1048,14 @@ result_t interpret(Module* m) {
                 continue;
             case 0x02:                       /* block */
                 read_LEB(bytes, &m->pc, 32); /* ignore block type */
-                if (m->csp >= CALLSTACK_SIZE) {
+                if (m->csp + 1 >= CALLSTACK_SIZE) {
                     return res_new_err("call stack exhausted");
                 }
                 push_block(m, m->block_lookup[cur_pc], m->sp);
                 continue;
             case 0x03:                       /* loop */
                 read_LEB(bytes, &m->pc, 32); /* ignore block type */
-                if (m->csp >= CALLSTACK_SIZE) {
+                if (m->csp + 1 >= CALLSTACK_SIZE) {
                     return res_new_err("call stack exhausted");
                 }
                 push_block(m, m->block_lookup[cur_pc], m->sp);
@@ -1026,7 +1063,7 @@ result_t interpret(Module* m) {
             case 0x04:                       /* if */
                 read_LEB(bytes, &m->pc, 32); /* ignore block type */
                 block = m->block_lookup[cur_pc];
-                if (m->csp >= CALLSTACK_SIZE) {
+                if (m->csp + 1 >= CALLSTACK_SIZE) {
                     return res_new_err("call stack exhausted");
                 }
                 push_block(m, block, m->sp);
@@ -1080,6 +1117,7 @@ result_t interpret(Module* m) {
                 continue;
             case 0x0c: /* br */
                 depth = read_LEB(bytes, &m->pc, 32);
+                BR_CHECK(m, depth);
                 m->csp -= depth;
                 /* set to end for pop_block */
                 m->pc = m->callstack[m->csp].block->br_addr;
@@ -1091,6 +1129,7 @@ result_t interpret(Module* m) {
 
                 cond = stack[m->sp--].value.uint32;
                 if (cond) { /* if true */
+                    BR_CHECK(m, depth);
                     m->csp -= depth;
                     /* set to end for pop_block */
                     m->pc = m->callstack[m->csp].block->br_addr;
@@ -1103,6 +1142,7 @@ result_t interpret(Module* m) {
                 if (count > BR_TABLE_SIZE) {
                     /* TODO: check this prior to runtime */
                     result_t err;
+                    err.status = S_ERR;
                     err.msg = calloc(1024, 1);
                     sprintf(err.msg, "br_table size %d exceeds max %d\n", count,
                             BR_TABLE_SIZE);
@@ -1114,10 +1154,11 @@ result_t interpret(Module* m) {
                 depth = read_LEB(bytes, &m->pc, 32);
 
                 didx = stack[m->sp--].value.int32;
-                if (didx >= 0 && didx < (int32_t)count) {
+                if (didx < count) {
                     depth = m->br_table[didx];
                 }
 
+                BR_CHECK(m, depth);
                 m->csp -= depth;
                 /* set to end for pop_block */
                 m->pc = m->callstack[m->csp].block->br_addr;
@@ -1147,10 +1188,13 @@ result_t interpret(Module* m) {
                 if (fidx < m->import_count) {
                     thunk_out(m, fidx); /* import/thunk call */
                 } else {
-                    if (m->csp >= CALLSTACK_SIZE) {
+                    if (m->csp + 1 >= CALLSTACK_SIZE) {
                         return res_new_err("call stack exhausted");
                     }
-                    setup_call(m, fidx); /* regular function call */
+                    res = setup_call(m, fidx); /* regular function call */
+                    if (res_err(res)) {
+                        return res;
+                    }
 
                     wa_trace("      - calling function fidx: %d at: 0x%x\n",
                              fidx, m->pc);
@@ -1175,16 +1219,20 @@ result_t interpret(Module* m) {
                      * 0xFFFFFFFF); */
                     val = val - (uint32_t)(uint64_t)m->table.entries;
                 }
-                if (val >= m->table.maximum) {
+                if (val >= m->table.size) {
                     result_t err;
+                    err.status = S_ERR;
                     err.msg = calloc(1024, 1);
                     sprintf(err.msg,
-                            "undefined element 0x%x (max: 0x%x) in table", val,
-                            m->table.maximum);
+                            "undefined element 0x%x (size: 0x%x) in table", val,
+                            m->table.size);
                     return err;
                 }
 
                 fidx = m->table.entries[val];
+                if (fidx >= m->function_count) {
+                    return res_new_err("call_indirect to invalid function index");
+                }
 
                 wa_trace(
                     "       - call_indirect tidx: %d, val: 0x%x, fidx: 0x%x\n",
@@ -1196,7 +1244,7 @@ result_t interpret(Module* m) {
                     Block* func = &m->functions[fidx];
                     Type* ftype = func->type;
 
-                    if (m->csp >= CALLSTACK_SIZE) {
+                    if (m->csp + 1 >= CALLSTACK_SIZE) {
                         return res_new_err("call stack exhausted");
                     }
                     if (ftype->mask != m->types[tidx].mask) {
@@ -1205,10 +1253,13 @@ result_t interpret(Module* m) {
                             "function type differ)");
                     }
 
-                    setup_call(m, fidx); /* regular function call */
+                    res = setup_call(m, fidx); /* regular function call */
+                    if (res_err(res)) {
+                        return res;
+                    }
 
                     /* Validate signatures match */
-                    if (ftype->param_count + func->local_count !=
+                    if ((int)(ftype->param_count + func->local_count) !=
                         m->sp - m->fp + 1) {
                         return res_new_err(
                             "indirect call type mismatch (param counts "
@@ -1232,6 +1283,8 @@ result_t interpret(Module* m) {
 
             /* Parametric operators */
             case 0x1a: /* drop */
+		STACK_POP_CHECK(m, 1);
+
                 m->sp--;
                 continue;
             case 0x1b: /* select */
@@ -1245,14 +1298,17 @@ result_t interpret(Module* m) {
             /* Variable access */
             case 0x20: /* get_local */
                 arg = read_LEB(bytes, &m->pc, 32);
+                LOCAL_CHECK(m, arg);
 
                 wa_trace("      - arg: 0x%x, got %s\n", arg,
                          value_repr(&stack[m->fp + arg]));
 
+                STACK_PUSH_CHECK(m);
                 stack[++m->sp] = stack[m->fp + arg];
                 continue;
             case 0x21: /* set_local */
                 arg = read_LEB(bytes, &m->pc, 32);
+                LOCAL_CHECK(m, arg);
                 stack[m->fp + arg] = stack[m->sp--];
 
                 wa_trace("      - arg: 0x%x, to %s\n", arg,
@@ -1261,6 +1317,7 @@ result_t interpret(Module* m) {
                 continue;
             case 0x22: /* tee_local */
                 arg = read_LEB(bytes, &m->pc, 32);
+                LOCAL_CHECK(m, arg);
 
                 stack[m->fp + arg] = stack[m->sp];
 
@@ -1270,14 +1327,18 @@ result_t interpret(Module* m) {
                 continue;
             case 0x23: /* get_global */
                 arg = read_LEB(bytes, &m->pc, 32);
+                GLOBAL_CHECK(m, arg);
 
                 wa_trace("      - arg: 0x%x, got %s\n", arg,
                          value_repr(&m->globals[arg]));
 
+                STACK_PUSH_CHECK(m);
                 stack[++m->sp] = m->globals[arg];
                 continue;
             case 0x24: /* set_global */
+		STACK_POP_CHECK(m, 1);
                 arg = read_LEB(bytes, &m->pc, 32);
+                GLOBAL_CHECK(m, arg);
                 m->globals[arg] = stack[m->sp--];
 
                 wa_trace("      - arg: 0x%x, to %s\n", arg,
@@ -1288,6 +1349,7 @@ result_t interpret(Module* m) {
             /* Memory-related operators */
             case 0x3f:                       /* current_memory */
                 read_LEB(bytes, &m->pc, 32); /* ignore reserved */
+                STACK_PUSH_CHECK(m);
                 stack[++m->sp].value_type = I32;
                 stack[m->sp].value.uint32 = m->memory.pages;
                 continue;
@@ -1324,6 +1386,7 @@ result_t interpret(Module* m) {
             case 0x33:
             case 0x34:
             case 0x35:
+		STACK_POP_CHECK(m, 1);
                 flags = read_LEB(bytes, &m->pc, 32);
                 offset = read_LEB(bytes, &m->pc, 32);
                 addr = stack[m->sp--].value.uint32;
@@ -1356,6 +1419,7 @@ result_t interpret(Module* m) {
                         return res_new_err("out of bounds memory access");
                     }
                 }
+                STACK_PUSH_CHECK(m);
                 stack[++m->sp].value.uint64 = 0; /* initialize to 0 */
                 switch (opcode) {
                     case 0x28:
@@ -1436,6 +1500,7 @@ result_t interpret(Module* m) {
             case 0x3c:
             case 0x3d:
             case 0x3e:
+		STACK_POP_CHECK(m, 2);
                 flags = read_LEB(bytes, &m->pc, 32);
                 offset = read_LEB(bytes, &m->pc, 32);
                 sval = &stack[m->sp--];
@@ -1502,14 +1567,17 @@ result_t interpret(Module* m) {
 
             /* Constants */
             case 0x41: /* i32.const */
+                STACK_PUSH_CHECK(m);
                 stack[++m->sp].value_type = I32;
                 stack[m->sp].value.uint32 = read_LEB_signed(bytes, &m->pc, 32);
                 continue;
             case 0x42: /* i64.const */
+                STACK_PUSH_CHECK(m);
                 stack[++m->sp].value_type = I64;
                 stack[m->sp].value.int64 = read_LEB_signed(bytes, &m->pc, 64);
                 continue;
             case 0x43: /* f32.const */
+                STACK_PUSH_CHECK(m);
                 stack[++m->sp].value_type = F32;
                 memcpy(&stack[m->sp].value.uint32, bytes + m->pc, 4);
                 stack[m->sp].value.f32 = *((float*)&stack[m->sp].value.uint32);
@@ -1518,6 +1586,7 @@ result_t interpret(Module* m) {
                  * 32); */
                 continue;
             case 0x44: /* f64.const */
+                STACK_PUSH_CHECK(m);
                 stack[++m->sp].value_type = F64;
                 memcpy(&stack[m->sp].value.uint64, bytes + m->pc, 8);
                 stack[m->sp].value.f64 = *((double*)&stack[m->sp].value.uint64);
@@ -1822,7 +1891,7 @@ result_t interpret(Module* m) {
                         c = a * b;
                         break; /* i32.mul */
                     case 0x6d:
-                        if (a == 0x80000000 && b == -1) {
+                        if (a == 0x80000000 && (int32_t)b == -1) {
                             return res_new_err("integer divide by zero");
                         }
                         c = (int32_t)a / (int32_t)b;
@@ -1831,7 +1900,7 @@ result_t interpret(Module* m) {
                         c = a / b;
                         break; /* i32.div_u */
                     case 0x6f:
-                        if (a == 0x80000000 && b == -1) {
+                        if (a == 0x80000000 && (int32_t)b == -1) {
                             c = 0;
                         } else {
                             c = (int32_t)a % (int32_t)b;
@@ -1905,7 +1974,7 @@ result_t interpret(Module* m) {
                         f = d * e;
                         break; /* i64.mul */
                     case 0x7f:
-                        if (d == 0x8000000000000000 && e == -1) {
+                        if (d == 0x8000000000000000 && (int64_t)e == -1) {
                             return res_new_err("integer divide by zero");
                         }
                         f = (int64_t)d / (int64_t)e;
@@ -1914,7 +1983,7 @@ result_t interpret(Module* m) {
                         f = d / e;
                         break; /* i64.div_u */
                     case 0x81:
-                        if (d == 0x8000000000000000 && e == -1) {
+                        if (d == 0x8000000000000000 && (int64_t)e == -1) {
                             f = 0;
                         } else {
                             f = (int64_t)d % (int64_t)e;
@@ -2208,6 +2277,7 @@ result_t interpret(Module* m) {
 
             default: {
                 result_t err;
+                err.status = S_ERR;
                 err.msg = calloc(1024, 1);
                 sprintf(err.msg, "unrecognized opcode 0x%x\n", opcode);
                 return err;
@@ -2219,7 +2289,7 @@ result_t interpret(Module* m) {
 
 void run_init_expr(Module* m, uint8_t type, uint32_t* pc) {
     /* Run the init_expr */
-    Block block = {0x01, 0, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    Block block = {0x01, 0, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     block.type = get_block_type(m, type);
     block.start_addr = *pc;
     m->pc = *pc;
@@ -2612,6 +2682,7 @@ Module* load_module(uint8_t* bytes, uint32_t byte_count, Options options) {
                     /* Run the init_expr to get global value */
                     run_init_expr(m, type1, &pos);
 
+		    STACK_POP_CHECK(m, 1);
                     m->globals[gidx] = m->stack[m->sp--];
                 }
                 pos = start_pos + slen;
@@ -2743,7 +2814,7 @@ Module* load_module(uint8_t* bytes, uint32_t byte_count, Options options) {
                     /* Restore position and read the locals */
                     pos = save_pos;
                     lidx = 0;
-                    for (j = 0; j < local_count; grp++) {
+                    for (j = 0; j < local_count; j++) {
                         lecount = read_LEB(bytes, &pos, 32);
                         vt = read_LEB(bytes, &pos, 7);
                         for (l = 0; l < lecount; l++) {
@@ -2767,7 +2838,7 @@ Module* load_module(uint8_t* bytes, uint32_t byte_count, Options options) {
 
     find_blocks(m);
 
-    if (m->start_function != -1) {
+    if (m->start_function != (uint32_t)-1) {
         uint32_t fidx = m->start_function;
         result_t result;
         wa_warn("Running start function 0x%x ('%s')\n", fidx,
@@ -2780,7 +2851,10 @@ Module* load_module(uint8_t* bytes, uint32_t byte_count, Options options) {
         if (fidx < m->import_count) {
             thunk_out(m, fidx); /* import/thunk call */
         } else {
-            setup_call(m, fidx); /* regular function call */
+            result = setup_call(m, fidx); /* regular function call */
+            if (res_err(result)) {
+                FATAL("Exception: %s\n", res_err_msg(result));
+            }
         }
 
         if (m->csp < 0) {
@@ -2807,7 +2881,10 @@ result_t invoke(Module* mod, uint32_t fidx) {
         dump_stacks(mod);
     }
 
-    setup_call(mod, fidx);
+    result = setup_call(mod, fidx);
+    if (res_err(result)) {
+        return result;
+    }
 
     result = interpret(mod);
 

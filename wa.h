@@ -166,7 +166,7 @@ typedef struct Module {
 
 char* value_repr(StackValue* v);
 void (*setup_thunk_in(uint32_t fidx))(void);
-void setup_call(Module* m, uint32_t fidx);
+result_t setup_call(Module* m, uint32_t fidx);
 result_t interpret(Module* m);
 
 extern uint32_t get_export_fidx(Module* m, char* name, uint32_t name_sz);

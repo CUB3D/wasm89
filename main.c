@@ -32,7 +32,7 @@ unsigned char arith_wasm[] = {
 unsigned int arith_wasm_len = 86;
 
 const char* arith_wasm_funcs[] = {"add",
-                                  "sub"
+                                  "sub",
                                   "mul",
                                   "div"};
 
@@ -130,7 +130,7 @@ void init_wac_eps(void) {
 /////////////////////////////////////////////////////////
 // Command line
 
-int main(int argc, char** argv) {
+int main() {
     char* mod_path = NULL;
     int fidx = 0;
     result_t res;
