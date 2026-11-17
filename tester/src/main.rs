@@ -291,23 +291,23 @@ mod core_test {
     test! {
         [address, "address"],
         [align, "align"],
-        [binary, "binary"], // t
+        [binary, "binary"],
         [binary_leb128, "binary-leb128"],
         [block, "block"],
         [br, "br"],
         [br_if, "br_if"],
-        // [br_table, "br_table"], //t
+        [br_table, "br_table"],
         [break_drop, "break-drop"],
         [call, "call"],
         [call_indirect, "call_indirect"],
         [comments, "comments"],
         [const_, "const"],
         [conversions, "conversions"],
-        // [custom, "custom"], //t
+        [custom, "custom"],
         // [data, "data"], //import
         // [elem, "elem"], // import
         [endianness, "endianness"],
-        // [exports, "exports"], // bug in harness
+        //[exports, "exports"], // bug in harness
         [f32, "f32"],
         [f32_bitwise, "f32_bitwise"],
         [f32_cmp, "f32_cmp"],
@@ -322,7 +322,7 @@ mod core_test {
         [forward, "forward"],
         [func, "func"],
         [func_ptrs, "func_ptrs"],
-        // [globals, "globals"], // imports / ubsan
+        //[globals, "globals"], // imports / ubsan
         [i32_, "i32"],
         [i64_, "i64"],
         [if_, "if"],
@@ -434,7 +434,7 @@ pub fn run_test(testset: &'static str) {
                     mangle_table_index: false,
                     dlsym_trim_underscore: false,
                 });
-                assert_ne!(mo, core::ptr::null_mut());
+                assert_ne!(mo, core::ptr::null_mut(), "Module load failed");
 
                 if let Some(name) = name {
                     mod_map.insert(name, mo);
@@ -507,7 +507,7 @@ pub fn run_test(testset: &'static str) {
                         let r = invoke(m, f);
                         match r.safe_r() {
                             SafeR::Ok => {}
-                            SafeR::Err(s) => panic!("{s}"),
+                            SafeR::Err(s) => panic!("get_export result: {s}"),
                             SafeR::ErrNest(s1, s2) => {
                                 if let SafeR::Err(ref x) = *s2 {
                                     if x == "multi_return_not_supported" {

@@ -2284,7 +2284,7 @@ result_t interpret(Module* m) {
             }
         }
     }
-    return res_new_err("Unreachable"); /* We shouldn't reach here */
+    return res_new_err("Unreachable, this is bad"); /* We shouldn't reach here */
 }
 
 void run_init_expr(Module* m, uint8_t type, uint32_t* pc) {
