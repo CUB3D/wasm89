@@ -339,7 +339,7 @@ mod core_test {
         [local_tee, "local_tee"],
         [loop_, "loop"],
         [memory, "memory"],
-        [memory_grow, "memory_grow"], // note: fails under ubsan when f32_cmp is enabled, but not under scudo or asan and not due to a *san error?
+        [memory_grow, "memory_grow"],
         [memory_redundancy, "memory_redundancy"],
         [memory_size, "memory_size"],
         [memory_trap, "memory_trap"],

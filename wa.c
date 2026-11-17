@@ -1367,7 +1367,7 @@ result_t interpret(Module* m) {
                 m->memory.pages += delta;
                 m->memory.bytes =
                     arecalloc(m->memory.bytes, prev_pages * PAGE_SIZE,
-                              m->memory.pages * PAGE_SIZE, sizeof(uint32_t),
+                              m->memory.pages * PAGE_SIZE, sizeof(uint8_t),
                               "grow_memory: Module->memory.bytes");
                 continue;
 
