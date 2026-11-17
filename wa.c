@@ -806,7 +806,7 @@ static void find_blocks(Module* m) {
 }
 
 #define STACK_POP_CHECK(m, x)                          \
-    if ((m)->sp < x) {                                 \
+    if ((m)->sp + 1 < x) {                             \
         return res_new_err("operand stack overflow");  \
     }
 #define STACK_PUSH_CHECK(m)                            \
@@ -2682,7 +2682,10 @@ Module* load_module(uint8_t* bytes, uint32_t byte_count, Options options) {
                     /* Run the init_expr to get global value */
                     run_init_expr(m, type1, &pos);
 
-		    STACK_POP_CHECK(m, 1);
+		    if ((m)->sp < 0) {                              
+			wa_warn("operand stack underflow");
+			return NULL;
+		    }
                     m->globals[gidx] = m->stack[m->sp--];
                 }
                 pos = start_pos + slen;

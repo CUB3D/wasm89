@@ -130,7 +130,7 @@ void init_wac_eps(void) {
 /////////////////////////////////////////////////////////
 // Command line
 
-int main() {
+int main(void) {
     char* mod_path = NULL;
     int fidx = 0;
     result_t res;
