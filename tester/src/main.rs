@@ -291,7 +291,7 @@ mod core_test {
     test! {
         [address, "address"],
         [align, "align"],
-        // [binary, "binary"], // t
+        [binary, "binary"], // t
         [binary_leb128, "binary-leb128"],
         [block, "block"],
         [br, "br"],

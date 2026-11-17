@@ -2632,37 +2632,39 @@ Module* load_module(uint8_t* bytes, uint32_t byte_count, Options options) {
                 wa_warn("Parsing Table(4) section\n");
                 table_count = read_LEB(bytes, &pos, 32);
                 wa_debug("  table count: 0x%x\n", table_count);
-                ASSERT(table_count == 1, "More than 1 table not supported");
+		if(table_count > 1) {
+			wa_warn("table size must be at most 1");
+			return NULL;
+		}
 
-                /* Allocate the table */
-                /* for (uint32_t c=0; c<table_count; c++) { */
-                parse_table_type(m, &pos);
-                /* If it's not imported then don't mangle it */
-                m->options.mangle_table_index = false;
-                m->table.entries = acalloc(m->table.size, sizeof(uint32_t),
-                                           "Module->table.entries");
-                /* } */
+                if (table_count != 0) {
+                    /* Allocate the table */
+                    parse_table_type(m, &pos);
+                    /* If it's not imported then don't mangle it */
+                    m->options.mangle_table_index = false;
+                    m->table.entries = acalloc(m->table.size, sizeof(uint32_t),
+                                               "Module->table.entries");
+                }
                 break;
             case 5:
                 wa_warn("Parsing Memory(5) section\n");
                 memory_count = read_LEB(bytes, &pos, 32);
                 wa_debug("  memory count: 0x%x\n", memory_count);
-                ASSERT(memory_count == 1, "More than 1 memory not supported\n");
+		if(memory_count > 1) {
+			wa_warn("memory count must be at most 1");
+			return NULL;
+		}
 
-                /* Allocate memory */
-                /* for (uint32_t c=0; c<memory_count; c++) { */
-                parse_memory_type(m, &pos);
-                wa_debug(
-                    "parse memory section: about to allocate %i pages, total "
-                    "size %i Bytes ... \n",
-                    (int)m->memory.pages, (int)m->memory.pages * PAGE_SIZE);
-                m->memory.bytes = acalloc(1, m->memory.pages * PAGE_SIZE,
-                                          "parse memory section\n");
-                /* m->memory.bytes = acalloc(m->memory.pages*PAGE_SIZE, */
-                /* sizeof(uint32_t),  // GGr: shoudn't this be bytes (means 1)
-                 * ?! */
-                /* "parse memory section: Module->memory.bytes\n"); */
-                /* } */
+                if (memory_count != 0) {
+                    /* Allocate memory */
+                    parse_memory_type(m, &pos);
+                    wa_debug(
+                        "parse memory section: about to allocate %i pages, "
+                        "total size %i Bytes ... \n",
+                        (int)m->memory.pages, (int)m->memory.pages * PAGE_SIZE);
+                    m->memory.bytes = acalloc(1, m->memory.pages * PAGE_SIZE,
+                                              "parse memory section\n");
+                }
                 break;
             case 6:
                 wa_warn("Parsing Global(6) section\n");
