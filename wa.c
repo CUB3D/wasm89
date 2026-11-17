@@ -935,14 +935,6 @@ void setup_call(Module* m, uint32_t fidx) {
         m->stack[m->sp].value.uint64 = 0; /* Initialize whole union to 0 */
     }
 
-    /* push locals again so that they don't overlap the frame (fixes
-     * local_tee:354) */
-    for (lidx = 0; lidx < func->local_count; lidx++) {
-        m->sp += 1;
-        m->stack[m->sp].value_type = func->locals[lidx];
-        m->stack[m->sp].value.uint64 = 0; /* Initialize whole union to 0 */
-    }
-
     /* Set program counter to start of function */
     m->pc = func->start_addr;
     return;
@@ -1858,13 +1850,13 @@ result_t interpret(Module* m) {
                         c = a ^ b;
                         break; /* i32.xor */
                     case 0x74:
-                        c = a << b;
+                        c = a << (b & 31);
                         break; /* i32.shl */
                     case 0x75:
-                        c = (int32_t)a >> b;
+                        c = (int32_t)a >> (b & 31);
                         break; /* i32.shr_s */
                     case 0x76:
-                        c = a >> b;
+                        c = a >> (b & 31);
                         break; /* i32.shr_u */
                     case 0x77:
                         c = rotl32(a, b);
@@ -1941,13 +1933,13 @@ result_t interpret(Module* m) {
                         f = d ^ e;
                         break; /* i64.xor */
                     case 0x86:
-                        f = d << e;
+                        f = d << (e & 63);
                         break; /* i64.shl */
                     case 0x87:
-                        f = ((int64_t)d) >> e;
+                        f = ((int64_t)d) >> (e & 63);
                         break; /* i64.shr_s */
                     case 0x88:
-                        f = d >> e;
+                        f = d >> (e & 63);
                         break; /* i64.shr_u */
                     case 0x89:
                         f = rotl64(d, e);
@@ -2279,7 +2271,7 @@ Module* load_module(uint8_t* bytes, uint32_t byte_count, Options options) {
         type_index, fidx, f, table_count, tidx, memory_count, global_count, g,
         e, n, s, b, l, export_count, element_count, offset, num_elem, seg_count,
         size, body_count, body_size, payload_start, local_count, save_pos, lidx,
-        lecount;
+        lecount, j;
     int start_pos;
     char *import_module, *import_field;
     uint8_t content_type, mutability, type1;
@@ -2740,13 +2732,10 @@ Module* load_module(uint8_t* bytes, uint32_t byte_count, Options options) {
                     /* Get number of locals for alloc */
                     save_pos = pos;
                     function->local_count = 0;
-                    for (l = 0; l < local_count; l++) {
+                    for (j = 0; j < local_count; j++) {
                         lecount = read_LEB(bytes, &pos, 32);
                         vt = read_LEB(bytes, &pos, 7);
-                        for (l = 0; l < lecount; l++) {
-                            wa_warn("local[%d]\n", lidx);
-                            function->local_count++;
-                        }
+                        function->local_count += lecount;
                     }
                     function->locals =
                         acalloc(function->local_count, sizeof(uint32_t),
@@ -2754,7 +2743,7 @@ Module* load_module(uint8_t* bytes, uint32_t byte_count, Options options) {
                     /* Restore position and read the locals */
                     pos = save_pos;
                     lidx = 0;
-                    for (l = 0; l < local_count; l++) {
+                    for (j = 0; j < local_count; grp++) {
                         lecount = read_LEB(bytes, &pos, 32);
                         vt = read_LEB(bytes, &pos, 7);
                         for (l = 0; l < lecount; l++) {
